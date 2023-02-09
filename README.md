@@ -39,6 +39,8 @@ To install the latest version with `nix-env`, use:
 nix-env --install --file https://github.com/MercuryTechnologies/nix-your-shell/archive/refs/heads/main.tar.gz
 ```
 
+You can later remove the installed program with `nix-env --uninstall nix-your-shell`.
+
 Run dynamically with `nix run`:
 
 ```sh
