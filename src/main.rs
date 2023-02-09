@@ -18,7 +18,7 @@ use shell::ShellKind;
 /// Use by adding `nix-your-shell | source` to your shell configuration.
 #[derive(Debug, Clone, Parser)]
 #[command(version, author, about)]
-#[command(max_term_width = 100)]
+#[command(max_term_width = 100, disable_help_subcommand = true)]
 pub struct Opts {
     /// Print absolute paths to `nix-your-shell` in shell environment code.
     ///
