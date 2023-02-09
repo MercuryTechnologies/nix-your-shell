@@ -4,7 +4,6 @@ use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use color_eyre::eyre;
 use color_eyre::eyre::eyre;
-use color_eyre::eyre::Context;
 
 /// A user's shell.
 #[derive(Clone, Debug)]
@@ -38,30 +37,6 @@ pub struct Shell {
 }
 
 impl Shell {
-    /// Get the `$SHELL` environment variable as a path.
-    pub fn get_path() -> eyre::Result<Utf8PathBuf> {
-        let shell_path = match std::env::var_os("SHELL") {
-            Some(var) => var,
-            None => {
-                return Err(eyre!("`$SHELL` environment variable is unset"))
-                    .wrap_err("Cannot determine shell");
-            }
-        };
-        let shell_path = shell_path
-            .to_str()
-            .ok_or_else(|| {
-                eyre!("`$SHELL` environment variable isn't valid UTF-8: {shell_path:?}")
-            })?
-            .to_owned();
-        Ok(Utf8PathBuf::from(shell_path))
-    }
-
-    /// Get the `ShellPath` represented by the `$SHELL` environment variable.
-    pub fn from_env() -> eyre::Result<Self> {
-        Self::from_path(Self::get_path()?)
-            .wrap_err("Failed to determine user shell from `$SHELL` environment variable")
-    }
-
     pub fn from_path(path: impl AsRef<Utf8Path>) -> eyre::Result<Self> {
         let path = path.as_ref();
         let file_name = match path.file_name() {

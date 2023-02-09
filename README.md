@@ -8,18 +8,28 @@ you prefer inside of Nix shells.
 
 ## Usage
 
+Add this to your shell configuration, replacing `fish` with your shell:
+
+```fish
+nix-your-shell fish | source
+```
+
 `nix-your-shell` will print out shell environment code you can source to
 activate `nix-your-shell`.
 
 The shell code will transform `nix` and `nix-shell` invocations that call
-`nix-your-shell nix ...` and `nix-your-shell nix-shell ...` instead.
+`nix-your-shell YOUR_SHELL nix ...` and `nix-your-shell YOUR_SHELL nix-shell ...` instead.
 `nix-your-shell` will add a `--command YOUR_SHELL` argument to these commands
 (unless you've already added one) so that it drops you into _your_ shell,
 rather than `bash`.
 
-`nix-your-shell` will default to the `$SHELL` environment variable, but you can
-also pass an alternate shell with the `--shell` argument if you'd like. For
-example, `nix-your-shell --shell fish | source`.
+You may want to only use `nix-your-shell` if it's installed, like this (for `fish`):
+
+```fish
+if command -q nix-your-shell
+    nix-your-shell fish | source
+end
+```
 
 ## Installation
 
@@ -86,7 +96,7 @@ Add to a NixOS flake configuration:
   programs.fish = {
     enable = true;
     promptInit = ''
-      nix-your-shell | source
+      nix-your-shell fish | source
     '';
   };
 

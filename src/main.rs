@@ -20,18 +20,16 @@ use shell::ShellKind;
 #[command(version, author, about)]
 #[command(max_term_width = 100)]
 pub struct Opts {
+    /// Print absolute paths to `nix-your-shell` in shell environment code.
+    ///
+    /// Note that this will not transform the shell argument to an absolute path.
+    #[arg(long)]
+    absolute: bool,
+
     /// The shell to use for wrapped commands and the shell environment.
     /// This can be an executable name like `fish` or the path to an executable like
     /// `/opt/homebrew/bin/fish`.
-    /// If not given, the shell will be inferred from the `$SHELL` environment variable.
-    #[arg(long)]
-    shell: Option<String>,
-
-    /// Print absolute paths to `nix-your-shell` in shell environment code.
-    ///
-    /// Note that this will not transform the value of `--shell` to an absolute path.
-    #[arg(long)]
-    absolute: bool,
+    shell: String,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -44,11 +42,9 @@ pub enum Command {
     /// This generally prints functions for `nix` and `nix-shell` which will instead call
     /// `nix-your-shell nix ...` and `nix-your-shell nix-shell ...`.
     Env,
-    /// Execute a `nix-shell` command, running the shell given by `--shell` if no command is
-    /// explicitly given.
+    /// Execute a `nix-shell` command, running the shell if no command is explicitly given.
     NixShell { args: Vec<String> },
-    /// Execute a `nix` command, running the shell given by `--shell` if no command is
-    /// explicitly given.
+    /// Execute a `nix` command, running the shell if no command is explicitly given.
     Nix { args: Vec<String> },
 }
 
@@ -63,10 +59,7 @@ fn main() -> eyre::Result<()> {
 
     color_eyre::install()?;
 
-    let shell = match &args.shell {
-        Some(path) => Shell::from_path(path)?,
-        None => Shell::from_env()?,
-    };
+    let shell = Shell::from_path(args.shell)?;
 
     match args.command.unwrap_or_default() {
         Command::Env => {
@@ -88,12 +81,10 @@ fn main() -> eyre::Result<()> {
             }
             .to_owned();
 
-            if let Some(shell_arg) = &args.shell {
-                shell_code = shell_code.replace(
-                    "nix-your-shell",
-                    &format!("nix-your-shell --shell {}", shell_words::quote(shell_arg)),
-                );
-            }
+            shell_code = shell_code.replace(
+                "nix-your-shell",
+                &format!("nix-your-shell {}", shell_words::quote(shell.path.as_str())),
+            );
 
             if args.absolute {
                 let current_exe = current_exe()
