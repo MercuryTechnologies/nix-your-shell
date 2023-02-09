@@ -1,0 +1,18 @@
+[package]
+name = "nix-your-shell"
+version = "1.0.0"
+edition = "2021"
+authors = ["Rebecca Turner <rebeccat@mercury.com>"]
+description = "A `nix` and `nix-shell` wrapper for shells other than `bash`"
+repository = "https://github.com/MercuryTechnologies/nix-your-shell"
+license = "MIT"
+keywords = ["nix", "nixos", "nix-shell", "fish"]
+categories = ["command-line-utilities"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+camino = "1.1.2"
+clap = { version = "4.1.4", features = ["derive", "wrap_help"] }
+color-eyre = "0.6.2"
+shell-words = "1.1.0"
