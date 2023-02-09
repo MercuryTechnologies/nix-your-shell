@@ -46,8 +46,8 @@
     )
     // {
       overlays.default = (
-        self: super: {
-          nix-your-shell = self.rustPlatform.buildRustPackage {
+        final: prev: {
+          nix-your-shell = final.rustPlatform.buildRustPackage {
             pname = "nix-your-shell";
             version = "1.0.0";
 
@@ -58,10 +58,16 @@
             src = ./.;
 
             # Tools on the builder machine needed to build; e.g. pkg-config
-            nativeBuildInputs = with self; [];
+            nativeBuildInputs = [
+              final.rustfmt
+            ];
 
             # Native libs
-            buildInputs = with self; [];
+            buildInputs = [];
+
+            postCheck = ''
+              cargo fmt --check && echo "\`cargo fmt\` is OK"
+            '';
           };
         }
       );
