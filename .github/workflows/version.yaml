@@ -98,7 +98,6 @@ jobs:
           cargo-release release \
             --execute \
             --no-confirm \
-            --no-publish \
             ${{ needs.bump_type.outputs.bump_type }}
 
       - name: Get new version number
