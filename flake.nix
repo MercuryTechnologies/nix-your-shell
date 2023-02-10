@@ -60,6 +60,7 @@
             # Tools on the builder machine needed to build; e.g. pkg-config
             nativeBuildInputs = [
               final.rustfmt
+              final.clippy
             ];
 
             # Native libs
@@ -67,6 +68,7 @@
 
             postCheck = ''
               cargo fmt --check && echo "\`cargo fmt\` is OK"
+              cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
             '';
           };
         }
