@@ -1,0 +1,69 @@
+---
+# This workflow runs when PRs are merged and tags a commit with the new version number.
+
+# Run when PRs to main are closed.
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+name: Tag a release
+
+jobs:
+  # We make `if_merged` a `needs:` of the other jobs here to only run this
+  # workflow on merged PRs.
+  if_merged:
+    name: Check that PR was merged and not closed
+    if: github.event.pull_request.merged == true
+      && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "This is a canonical hack to run GitHub Actions on merged PRs"
+          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-workflow-when-a-pull-request-merges"
+
+      - name: Comment on PR with link to this action
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            [This release is now being built.][run]
+
+            [run]: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  version:
+    name: Get version number
+    needs: if_merged
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_cargo_metadata.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install rustup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install jq
+        run: sudo apt install -y jq
+
+      - name: Get version number
+        id: get_cargo_metadata
+        run: |
+          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+
+  tag:
+    name: Upload assets to release
+    runs-on: [self-hosted, linux]
+    needs:
+      - if_merged
+      - version
+    steps:
+      - name: Tag the release
+        uses: mathieudutour/github-tag-action@v6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commit_sha: ${{ github.event.pull_request.merge_commit_sha }}
+          custom_tag: ${{ needs.version.outputs.version }}

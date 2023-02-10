@@ -1,0 +1,56 @@
+---
+# This workflow runs when PRs are opened and labels them `patch`.
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+
+name: Label PRs with `patch` by default
+
+jobs:
+  # It seems like GitHub doesn't correctly populate the PR labels for the
+  # `opened` event, so we use the GitHub API to fetch them separately.
+
+  get-labels:
+    name: Get PR labels
+    runs-on: ubuntu-latest
+    if: >
+      ! startsWith(github.event.pull_request.head.ref, 'release/')
+    outputs:
+      labels: ${{ steps.get-labels.outputs.labels }}
+    steps:
+      - name: Get PR labels from GitHub API
+        id: get-labels
+        env:
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABELS=$(gh api "repos/$REPO/issues/$NUMBER/labels")
+          echo "PR #$NUMBER is labeled with: $LABELS"
+          echo "labels=$LABELS" >> "$GITHUB_OUTPUT"
+
+  label:
+    name: Label PR with `patch`
+    needs:
+      - get-labels
+    # This has been endlessly frustrating. I have no clue why I've had such bad
+    # luck with this particular `if`, especially when I use the same logic
+    # elsewhere in these actions and it seems to Just Work there. Misery!
+    # Misery for Wiggles for 1000 years!!!
+    #
+    # total_hours_wasted_here = 4
+    if: >
+      ! ( contains(fromJSON(needs.get-labels.outputs.labels).*.name, 'release')
+       || contains(fromJSON(needs.get-labels.outputs.labels).*.name, 'minor')
+       || contains(fromJSON(needs.get-labels.outputs.labels).*.name, 'major')
+      )
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label PR with `patch`
+        uses: actions/labeler@v4
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

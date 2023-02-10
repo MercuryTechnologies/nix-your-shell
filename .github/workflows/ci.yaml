@@ -1,0 +1,39 @@
+---
+# This is the main CI workflow, run for PRs and on `main`.
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+name: Continuous integration
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, [self-hosted, macos]]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: cachix/install-nix-action@v15
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+          nix_path: nixpkgs=channel:nixos-22.05
+
+      - name: Log versions
+        run: |
+          nix --version
+
+      - name: Check Nix flake
+        run: nix --extra-experimental-features 'nix-command flakes' flake check
