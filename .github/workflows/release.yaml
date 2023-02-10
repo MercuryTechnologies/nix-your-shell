@@ -129,6 +129,7 @@ jobs:
           path: target/release/nix-your-shell-x86_64-linux
 
       - name: Publish to crates.io
+        if: runner.os == 'Linux'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
