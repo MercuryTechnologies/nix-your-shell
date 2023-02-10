@@ -31,3 +31,5 @@ dev-version = false
 tag = false
 # Don't do `git push`
 push = false
+# Don't do `cargo publish`
+publish = false
