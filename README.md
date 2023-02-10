@@ -105,3 +105,21 @@ Add to a NixOS flake configuration:
   # ... extra configuration
 }
 ```
+
+## Comparison with `any-nix-shell`
+
+[`any-nix-shell`](https://github.com/haslersn/any-nix-shell) does roughly the
+same thing, and serves as the inspiration for `nix-your-shell`.
+
+There are a few reasons I wrote `nix-your-shell` as a competitor:
+
+- `any-nix-shell` doesn't support Nix flakes through `nix develop`. `nix-your-shell` does.
+- `any-nix-shell` is a hodgepodge of shell scripts with multiple layers of
+  `eval` and templating, making hacking or modifying it challenging. In
+  contrast, `nix-your-shell` is written in Rust with a relatively
+  straightforward structure (the shell environment code generation command and
+  the `nix` wrappers are the same, so there's no need for dotfile executables
+  on your `$PATH`).
+
+However, `any-nix-shell` can optionally display the packages in the current
+shell on a righthand prompt. `nix-your-shell` does not support this.
