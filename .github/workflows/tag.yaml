@@ -56,7 +56,7 @@ jobs:
 
   tag:
     name: Upload assets to release
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs:
       - if_merged
       - version
