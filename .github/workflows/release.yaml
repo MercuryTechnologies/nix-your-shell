@@ -1,166 +1,202 @@
 ---
-# Generated with:
-#   cargo dist generate-ci github \
-#     --installer github-shell \
-#     --target x86_64-unknown-linux-gnu \
-#     --target aarch64-unknown-linux-gnu \
-#     --target x86_64-apple-darwin \
-#     --target aarch64-apple-darwin
-#
-# CI that:
-#
-# * checks for a Git Tag that looks like a release ("v1.2.0")
-# * creates a Github Release™️
-# * builds binaries/packages with cargo-dist
-# * uploads those packages to the Github Release™️
-#
-# Note that the Github Release™️ will be created before the packages,
-# so there will be a few minutes where the release has no packages
-# and then they will slowly trickle in, possibly failing. To make
-# this more pleasant we mark the release as a "draft" until all
-# artifacts have been successfully uploaded. This allows you to
-# choose what to do with partial successes and avoids spamming
-# anyone with notifications before the release is actually ready.
-name: Release
+# This workflow runs when PRs are merged and tags/builds/publishes a release.
 
-permissions:
-  contents: write
-
-# This task will run whenever you push a git tag that looks like
-# a version number. We just look for `v` followed by at least one number
-# and then whatever. so `v1`, `v1.0.0`, and `v1.0.0-prerelease` all work.
-#
-# If there's a prerelease-style suffix to the version then the Github Release™️
-# will be marked as a prerelease (handled by taiki-e/create-gh-release-action).
-#
-# Note that when generating links to uploaded artifacts, cargo-dist will currently
-# assume that your git tag is always v{VERSION} where VERSION is the version in
-# the published package's Cargo.toml (this is the default behaviour of cargo-release).
-# In the future this may be made more robust/configurable.
+# Run when PRs to main are closed.
 on:
-  push:
-    tags:
-      - v[0-9]+.*
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
 
-env:
-  ALL_CARGO_DIST_TARGET_ARGS: --target=x86_64-unknown-linux-gnu --target=aarch64-unknown-linux-gnu --target=x86_64-apple-darwin --target=aarch64-apple-darwin 
-  ALL_CARGO_DIST_INSTALLER_ARGS: --installer=github-shell 
+name: Build and publish a release
 
 jobs:
-  # Create the Github Release™️ so the packages have something to be uploaded to
-  create-release:
+  # We make `if_merged` a `needs:` of the other jobs here to only run this
+  # workflow on merged PRs.
+  if_merged:
+    name: Check that PR was merged and not closed
+    if: github.event.pull_request.merged == true
+      && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "This is a canonical hack to run GitHub Actions on merged PRs"
+          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-workflow-when-a-pull-request-merges"
+
+      - name: Comment on PR with link to this action
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            [This release is now being built.][run]
+
+            [run]: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  version:
+    name: Get version number
+    needs: if_merged
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.create-gh-release.outputs.computed-prefix }}${{ steps.create-gh-release.outputs.version }}
+      version: ${{ steps.get_cargo_metadata.outputs.version }}
     steps:
-      - uses: actions/checkout@v3
-      - id: create-gh-release
-        uses: taiki-e/create-gh-release-action@v1
-        with:
-          draft: true
-          # (required) GitHub token for creating GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Install rustup
+        uses: dtolnay/rust-toolchain@stable
 
-  # Build and packages all the things
-  upload-artifacts:
-    needs: create-release
+      - name: Install jq
+        run: sudo apt install -y jq
+
+      - name: Get version number
+        id: get_cargo_metadata
+        run: |
+          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Release Build
+    # Now we're ready to do the release build. In this step, we upload
+    # "artifacts" which lets us share files between jobs (the artifacts are
+    # downloaded by the next job, `upload`) and aggregate files from different
+    # parts of the matrix (so we can have the macOS and Linux executables in
+    # the next job).
+    needs: if_merged
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # For these target platforms
-        include:
-        - target: x86_64-unknown-linux-gnu
-          os: ubuntu-20.04
-          install-dist: curl --proto '=https' --tlsv1.2 -L -sSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.2/installer.sh | sh
-        - target: aarch64-unknown-linux-gnu
-          os: ubuntu-20.04
-          install-dist: curl --proto '=https' --tlsv1.2 -L -sSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.2/installer.sh | sh
-        - target: x86_64-apple-darwin
-          os: macos-11
-          install-dist: curl --proto '=https' --tlsv1.2 -L -sSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.2/installer.sh | sh
-        - target: aarch64-apple-darwin
-          os: macos-11
-          install-dist: curl --proto '=https' --tlsv1.2 -L -sSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.2/installer.sh | sh
-    runs-on: ${{ matrix.os }}
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        os: [ubuntu-latest, [self-hosted, macos]]
     steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust
-        run: rustup update stable && rustup default stable
-      - name: Install cargo-dist
-        run: ${{ matrix.install-dist }}
-      - name: Run cargo-dist
-        # This logic is a bit janky because it's trying to be a polyglot between
-        # powershell and bash since this will run on windows, macos, and linux!
-        # The two platforms don't agree on how to talk about env vars but they
-        # do agree on 'cat' and '$()' so we use that to marshal values between commmands.
-        run: |
-          # Actually do builds and make zips and whatnot
-          cargo dist --target=${{ matrix.target }} --output-format=json > dist-manifest.json
-          echo "dist ran successfully"
-          cat dist-manifest.json
-          # Parse out what we just built and upload it to the Github Release™️
-          cat dist-manifest.json | jq --raw-output ".releases[].artifacts[].path" > uploads.txt
-          echo "uploading..."
-          cat uploads.txt
-          gh release upload ${{ needs.create-release.outputs.tag }} $(cat uploads.txt)
-          echo "uploaded!"
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  # Compute and upload the manifest for everything
-  upload-manifest:
-    needs: create-release
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust
-        run: rustup update stable && rustup default stable
-      - name: Install cargo-dist
-        run: curl --proto '=https' --tlsv1.2 -L -sSf https://github.com/axodotdev/cargo-dist/releases/download/v0.0.2/installer.sh | sh
-      - name: Run cargo-dist manifest
-        run: |
-          # Generate a manifest describing everything
-          cargo dist manifest --no-local-paths --output-format=json $ALL_CARGO_DIST_TARGET_ARGS $ALL_CARGO_DIST_INSTALLER_ARGS > dist-manifest.json
-          echo "dist manifest ran successfully"
-          cat dist-manifest.json
-          # Upload the manifest to the Github Release™️
-          gh release upload ${{ needs.create-release.outputs.tag }} dist-manifest.json
-          echo "uploaded manifest!"
-          # Edit the Github Release™️ title/body to match what cargo-dist thinks it should be
-          CHANGELOG_TITLE=$(cat dist-manifest.json | jq --raw-output ".releases[].changelog_title")
-          cat dist-manifest.json | jq --raw-output ".releases[].changelog_body" > new_dist_changelog.md
-          gh release edit ${{ needs.create-release.outputs.tag }} --title="$CHANGELOG_TITLE" --notes-file=new_dist_changelog.md
-          echo "updated release notes!"
-      - name: Run cargo-dist --installer=...
-        run: |
-          # Run cargo dist with --no-builds to get agnostic artifacts like installers
-          cargo dist --output-format=json --no-builds $ALL_CARGO_DIST_INSTALLER_ARGS > dist-manifest.json
-          echo "dist ran successfully"
-          cat dist-manifest.json
-          # Grab the installers that were generated and upload them.
-          # This filter is working around the fact that --no-builds is kinds hacky
-          # and still makes/reports malformed zips that we don't want to upload.
-          cat dist-manifest.json | jq --raw-output '.releases[].artifacts[] | select(.kind == "installer") | .path' > uploads.txt
-          echo "uploading..."
-          cat uploads.txt
-          gh release upload ${{ needs.create-release.outputs.tag }} $(cat uploads.txt)
-          echo "uploaded installers!"
+      - name: Install rustup
+        uses: dtolnay/rust-toolchain@stable
+        if: runner.os == 'macOS'
+        with:
+          target: x86_64-apple-darwin, aarch64-apple-darwin
 
-  # Mark the Github Release™️ as a non-draft now that everything has succeeded!
-  publish-release:
-    needs: [create-release, upload-artifacts, upload-manifest]
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: mark release as non-draft
+      - name: Install rustup
+        uses: dtolnay/rust-toolchain@stable
+        if: runner.os == 'Linux'
+        with:
+          target: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+
+      - name: Log versions
+        run: which -a rustup && rustup --version
+
+      - name: Test
+        run: cargo test
+
+      - name: Build (macOS, x86_64)
+        if: runner.os == 'macOS'
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Build (macOS, aarch64)
+        if: runner.os == 'macOS'
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build (Linux, x86_64)
+        if: runner.os == 'Linux'
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Build (Linux, aarch64)
+        if: runner.os == 'Linux'
+        run: cargo build --release --target aarch64-unknown-linux-musl
+
+      - name: Create macOS universal executable and codesign it
+        if: runner.os == 'macOS'
         run: |
-          gh release edit ${{ needs.create-release.outputs.tag }} --draft=false
-      - name: publish to crates.io
+          lipo -create -output target/release/nix-your-shell-macos \
+            target/x86_64-apple-darwin/release/nix-your-shell \
+            target/aarch64-apple-darwin/release/nix-your-shell
+
+      - name: Rename executables for upload
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p target/release
+          mv target/x86_64-unknown-linux-musl/release/nix-your-shell \
+             target/release/nix-your-shell-x86_64-linux
+          mv target/aarch64-unknown-linux-musl/release/nix-your-shell \
+             target/release/nix-your-shell-aarch64-linux
+
+      - name: Upload macOS executable
+        uses: actions/upload-artifact@v3
+        if: runner.os == 'macOS'
+        with:
+          name: macos
+          path: target/release/nix-your-shell-macos
+
+      - name: Upload Linux x86_64 executable
+        uses: actions/upload-artifact@v3
+        if: runner.os == 'Linux'
+        with:
+          name: linux-x86_64
+          path: target/release/nix-your-shell-x86_64-linux
+
+      - name: Upload Linux aarch64 executable
+        uses: actions/upload-artifact@v3
+        if: runner.os == 'Linux'
+        with:
+          name: linux-aarch64
+          path: target/release/nix-your-shell-aarch64-linux
+
+      - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           cargo publish
+
+  upload:
+    name: Upload assets to release
+    runs-on: [self-hosted, linux]
+    needs:
+      - if_merged
+      - build
+      - version
+    steps:
+      - name: Tag the release
+        uses: mathieudutour/github-tag-action@v6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commit_sha: ${{ github.event.pull_request.merge_commit_sha }}
+          custom_tag: ${{ needs.version.outputs.version }}
+
+      - name: Download artifacts
+        # This downloads the uploaded artifacts to the current directory; the
+        # path format for downloaded artifacts is `{name}/{basename}`, where
+        # `{basename}` is the basename of the upload `path`.
+        #
+        # For example, the following artifact:
+        #
+        #     - uses: actions/upload-artifact@v3
+        #       with:
+        #         name: linux-aarch64
+        #         path: target/release/nix-your-shell-aarch64-linux
+        #
+        # will be downloaded to `linux-aarch64/nix-your-shell-aarch64-linux`.
+        uses: actions/download-artifact@v3
+
+      - name: Create release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          tag_name: v${{ needs.version.outputs.version }}
+          files: |
+            macos/nix-your-shell-macos
+            linux-x86_64/nix-your-shell-x86_64-linux
+            linux-aarch64/nix-your-shell-aarch64-linux
+
+      - name: Comment on PR with link to the release
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            [Release ${{ needs.version.outputs.version }}][release] was built and published successfully!
+
+            [release]: ${{ steps.create_release.outputs.url }}
