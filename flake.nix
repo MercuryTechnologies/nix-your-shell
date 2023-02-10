@@ -49,7 +49,7 @@
         final: prev: {
           nix-your-shell = final.rustPlatform.buildRustPackage {
             pname = "nix-your-shell";
-            version = "1.0.0"; # LOAD-BEARING COMMENT. See: `.github/workflows/version.yaml`
+            version = "1.0.1"; # LOAD-BEARING COMMENT. See: `.github/workflows/version.yaml`
 
             cargoLock = {
               lockFile = ./Cargo.lock;
