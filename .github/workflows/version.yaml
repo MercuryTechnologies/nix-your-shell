@@ -1,0 +1,145 @@
+---
+# This workflow runs when PRs labeled `major`, `minor`, or `patch` are closed
+# and increments version numbers. Then, it opens a PR labeled `release` for the
+# changes. When that PR is merged, a release is created (see `release.yaml`).
+#
+# Are you here because I left Mercury and now my personal access token is
+# invalid for workflows, breaking CI? You'll want to go to
+#     https://github.com/MercuryTechnologies/nix-your-shell/settings/secrets/actions
+# and update the `REPO_GITHUB_TOKEN` secret to a new, valid token.
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+name: Update versions and release
+
+jobs:
+  # We make `if_merged` a `needs:` of the other jobs here to only run this
+  # workflow on merged PRs.
+  if_merged:
+    name: Check that PR was merged and not closed
+    if: github.event.pull_request.merged == true
+      && ( contains(github.event.pull_request.labels.*.name, 'major')
+        || contains(github.event.pull_request.labels.*.name, 'minor')
+        || contains(github.event.pull_request.labels.*.name, 'patch')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "This is a canonical hack to run GitHub Actions on merged PRs"
+          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-workflow-when-a-pull-request-merges"
+
+  bump_type:
+    name: Determine version bump type
+    needs: if_merged
+    runs-on: ubuntu-latest
+    outputs:
+      bump_type: ${{ steps.bump_type.outputs.bump_type }}
+    steps:
+      - name: Set output
+        id: bump_type
+        env:
+          is_major: ${{ contains(github.event.pull_request.labels.*.name, 'major') }}
+          is_minor: ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}
+          is_patch: ${{ contains(github.event.pull_request.labels.*.name, 'patch') }}
+        run: |
+          if [[ "$is_major" == "true" ]]; then
+            echo "bump_type=major" >> "$GITHUB_OUTPUT"
+          elif [[ "$is_minor" == "true" ]]; then
+            echo "bump_type=minor" >> "$GITHUB_OUTPUT"
+          elif [[ "$is_patch" == "true" ]]; then
+            echo "bump_type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+  version:
+    name: Update and tag version numbers
+    needs:
+      - if_merged
+      - bump_type
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          # Fetch all history/tags (needed to compute versions)
+          fetch-depth: 0
+
+      - name: Install rustup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Download and install `cargo-release`
+        run: |
+          set -v
+          pushd "$(mktemp -d)"
+          curl -L -o cargo-release.tar.gz \
+            https://github.com/crate-ci/cargo-release/releases/download/v0.21.1/cargo-release-v0.21.1-x86_64-unknown-linux-gnu.tar.gz
+          tar -xvf cargo-release.tar.gz
+          install -d ~/.local/bin
+          install cargo-release ~/.local/bin
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          popd
+          ~/.local/bin/cargo-release release --version
+
+      - name: Get old version number
+        id: old_cargo_metadata
+        run: |
+          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Increment `Cargo.toml` version
+        # `cargo-release` changes the version numbers in `Cargo.toml` and
+        # `Cargo.lock` and commits the changes.
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          cargo-release release \
+            --execute \
+            --no-confirm \
+            ${{ needs.bump_type.outputs.bump_type }}
+
+      - name: Get new version number
+        id: new_cargo_metadata
+        run: |
+          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: Increment `flake.nix` version
+        run: |
+          sed -e "s/version = \"[^\"]*\"; # LOAD-BEARING COMMENT/version = \"${{ steps.new_cargo_metadata.outputs.version }}\"; # LOAD-BEARING COMMENT/" \
+              -i "" \
+              flake.nix
+
+          # Commit the new changes
+          git add flake.nix
+          git commit --amend --no-edit
+
+      - name: Create release PR
+        id: release_pr
+        uses: peter-evans/create-pull-request@v4
+        with:
+          # We push with the repo-scoped GitHub token to avoid branch
+          # protections. This token is tied to my account (@9999years) which is
+          # excluded from branch protection restrictions.
+          #
+          # I'd love a better way of implementing this but GitHub doesn't have
+          # one: https://github.com/github-community/community/discussions/13836
+          token: ${{ secrets.REPO_GITHUB_TOKEN }}
+          branch: release/${{ steps.new_cargo_metadata.outputs.version }}
+          delete-branch: true
+          base: main
+          title: Release version ${{ steps.new_cargo_metadata.outputs.version }}
+          body: |
+            Update version to ${{ steps.new_cargo_metadata.outputs.version }} with [cargo-release](https://github.com/crate-ci/cargo-release).
+            Merge this PR to build and publish a new release.
+          labels: release
+
+      - name: Comment on PR with link to release PR
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            [A PR to release these changes has been created, bumping the version from ${{ steps.old_cargo_metadata.outputs.version }} to ${{ steps.new_cargo_metadata.outputs.version }}.][pr]
+
+            [pr]: ${{ steps.release_pr.outputs.pull-request-url }}
