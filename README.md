@@ -8,12 +8,6 @@ you prefer inside of Nix shells.
 
 ## Usage
 
-Add this to your shell configuration, replacing `fish` with your shell:
-
-```fish
-nix-your-shell fish | source
-```
-
 `nix-your-shell` will print out shell environment code you can source to
 activate `nix-your-shell`.
 
@@ -23,15 +17,30 @@ The shell code will transform `nix` and `nix-shell` invocations that call
 (unless you've already added one) so that it drops you into _your_ shell,
 rather than `bash`.
 
-You may want to only use `nix-your-shell` if it's installed, like this (for `fish`):
+
+### Fish
+
+Add to your `~/.config/fish/config.fish`:
 
 ```fish
 if command -q nix-your-shell
-    nix-your-shell fish | source
+  nix-your-shell fish | source
 end
 ```
 
+### Zsh
+
+Add to your `~/.zshrc`:
+
+```
+if command -v nix-your-shell > /dev/null; then
+  nix-your-shell zsh | source /dev/stdin
+fi
+```
+
 ## Installation
+
+### nix-env
 
 To install the latest version with `nix-env`, use:
 
@@ -41,11 +50,15 @@ nix-env --install --file https://github.com/MercuryTechnologies/nix-your-shell/a
 
 You can later remove the installed program with `nix-env --uninstall nix-your-shell`.
 
+### nix run
+
 Run dynamically with `nix run`:
 
 ```sh
 nix run github:MercuryTechnologies/nix-your-shell
 ```
+
+### Flakes
 
 Add to a NixOS flake configuration:
 

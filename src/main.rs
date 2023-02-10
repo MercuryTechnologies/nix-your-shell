@@ -65,7 +65,7 @@ fn main() -> eyre::Result<()> {
         Command::Env => {
             let mut shell_code = match shell.kind {
                 ShellKind::Zsh => {
-                    include_str!("../data/env.fish")
+                    include_str!("../data/env.zsh")
                 }
 
                 ShellKind::Fish => {
