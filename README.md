@@ -1,5 +1,7 @@
 # nix-your-shell
 
+![Crates.io](https://img.shields.io/crates/v/nix-your-shell)
+
 A `nix` and `nix-shell` wrapper for shells other than `bash`.
 
 `nix develop` and `nix-shell` use `bash` as the default shell, so
