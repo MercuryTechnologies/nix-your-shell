@@ -36,4 +36,4 @@ jobs:
           nix --version
 
       - name: Check Nix flake
-        run: nix --extra-experimental-features 'nix-command flakes' flake check
+        run: nix --extra-experimental-features 'nix-command flakes' flake check --print-build-logs
