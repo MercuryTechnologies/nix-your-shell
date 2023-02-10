@@ -100,10 +100,6 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo build --release --target x86_64-unknown-linux-musl
 
-      - name: Build (Linux, aarch64)
-        if: runner.os == 'Linux'
-        run: cargo build --release --target aarch64-unknown-linux-musl
-
       - name: Create macOS universal executable and codesign it
         if: runner.os == 'macOS'
         run: |
@@ -117,8 +113,6 @@ jobs:
           mkdir -p target/release
           mv target/x86_64-unknown-linux-musl/release/nix-your-shell \
              target/release/nix-your-shell-x86_64-linux
-          mv target/aarch64-unknown-linux-musl/release/nix-your-shell \
-             target/release/nix-your-shell-aarch64-linux
 
       - name: Upload macOS executable
         uses: actions/upload-artifact@v3
@@ -133,13 +127,6 @@ jobs:
         with:
           name: linux-x86_64
           path: target/release/nix-your-shell-x86_64-linux
-
-      - name: Upload Linux aarch64 executable
-        uses: actions/upload-artifact@v3
-        if: runner.os == 'Linux'
-        with:
-          name: linux-aarch64
-          path: target/release/nix-your-shell-aarch64-linux
 
       - name: Publish to crates.io
         env:
@@ -190,7 +177,6 @@ jobs:
           files: |
             macos/nix-your-shell-macos
             linux-x86_64/nix-your-shell-x86_64-linux
-            linux-aarch64/nix-your-shell-aarch64-linux
 
       - name: Comment on PR with link to the release
         uses: peter-evans/create-or-update-comment@v2
