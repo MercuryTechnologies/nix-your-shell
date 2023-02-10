@@ -159,3 +159,8 @@ jobs:
       - name: mark release as non-draft
         run: |
           gh release edit ${{ needs.create-release.outputs.tag }} --draft=false
+      - name: publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish
