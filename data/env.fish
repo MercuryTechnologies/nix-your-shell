@@ -2,9 +2,9 @@
 # nix-your-shell | source
 
 function nix-shell --description "Start an interactive shell based on a Nix expression"
-    nix-your-shell nix-shell $argv
+    nix-your-shell nix-shell -- $argv
 end
 
 function nix --description "Reproducible and declarative configuration management"
-    nix-your-shell nix $argv
+    nix-your-shell nix -- $argv
 end
