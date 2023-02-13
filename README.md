@@ -14,12 +14,8 @@ you prefer inside of Nix shells.
 `nix-your-shell` will print out shell environment code you can source to
 activate `nix-your-shell`.
 
-The shell code will transform `nix` and `nix-shell` invocations that call
-`nix-your-shell YOUR_SHELL nix ...` and `nix-your-shell YOUR_SHELL nix-shell ...` instead.
-`nix-your-shell` will add a `--command YOUR_SHELL` argument to these commands
-(unless you've already added one) so that it drops you into _your_ shell,
-rather than `bash`.
-
+Then, `nix-shell`, `nix develop`, and `nix shell` will use your shell instead
+of bash, unless overridden with a `--command` argument.
 
 ### Fish
 
