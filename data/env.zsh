@@ -2,9 +2,9 @@
 # nix-your-shell | source /dev/stdin
 
 function nix-shell () {
-    nix-your-shell nix-shell "$@"
+    nix-your-shell nix-shell -- "$@"
 }
 
 function nix () {
-    nix-your-shell nix "$@"
+    nix-your-shell nix -- "$@"
 }
