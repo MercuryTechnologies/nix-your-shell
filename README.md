@@ -1,6 +1,7 @@
 # nix-your-shell
 
 ![Crates.io](https://img.shields.io/crates/v/nix-your-shell)
+[![nixpkgs](https://repology.org/badge/version-for-repo/nix_unstable/nix-your-shell.svg?header=nixpkgs)](https://repology.org/project/nix-your-shell/versions)
 
 A `nix` and `nix-shell` wrapper for shells other than `bash`.
 
