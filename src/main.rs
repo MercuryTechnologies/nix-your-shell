@@ -2,6 +2,7 @@
 use std::os::unix::process::CommandExt;
 use std::process;
 
+use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use color_eyre::eyre;
@@ -23,6 +24,8 @@ pub struct Opts {
     /// Print absolute paths to `nix-your-shell` in shell environment code.
     ///
     /// Note that this will not transform the shell argument to an absolute path.
+    ///
+    /// Absolute paths are automatically printed if `nix-your-shell` isn't on the `$PATH`.
     #[arg(long)]
     absolute: bool,
 
@@ -81,14 +84,20 @@ fn main() -> eyre::Result<()> {
             }
             .to_owned();
 
+            // Do some string replacements to reflect the arguments passed to `nix-your-shell` in
+            // the generated code.
+            //
+            // We could make this a bit "cleaner" with an actual templating language, but it's nice
+            // that the snippets in `../data/` are valid code and not templates.
+
             shell_code = shell_code.replace(
                 "nix-your-shell",
                 &format!("nix-your-shell {}", shell_words::quote(shell.path.as_str())),
             );
 
-            if args.absolute {
-                let current_exe = current_exe()
-                    .wrap_err("Unable to determine absolute path of `nix-your-shell`")?;
+            let current_exe =
+                current_exe().wrap_err("Unable to determine absolute path of `nix-your-shell`")?;
+            if args.absolute || !executable_is_on_path(&current_exe)? {
                 shell_code =
                     shell_code.replace("nix-your-shell", &format!("{current_exe} --absolute"));
             }
@@ -116,6 +125,17 @@ fn main() -> eyre::Result<()> {
 fn current_exe() -> eyre::Result<Utf8PathBuf> {
     Utf8PathBuf::from_path_buf(std::env::current_exe()?)
         .map_err(|path_buf| eyre!("Path is not UTF-8: {path_buf:?}"))
+}
+
+fn executable_is_on_path(executable: &Utf8Path) -> eyre::Result<bool> {
+    let directory = executable
+        .parent()
+        .ok_or_else(|| eyre!("Executable has no parent directory: {executable:?}"))?;
+    let path = std::env::var("PATH").wrap_err("Failed to get $PATH environment variable")?;
+    Ok(path
+        .split(':')
+        .map(Utf8Path::new)
+        .any(|component| component == directory))
 }
 
 /// Transform arguments to a `nix` invocation to run the specified `command`.
