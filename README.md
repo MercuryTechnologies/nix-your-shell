@@ -39,12 +39,26 @@ fi
 
 ## Installation
 
+You can either install `nix-your-shell` from this repository or from `nixpkgs`.
+The version packaged in `nixpkgs` will probably lag behind this repository by
+about a week or so.
+
+### nix profile
+
+To install the latest version with `nix profile`, use one of:
+
+```sh
+nix profile install github:MercuryTechnologies/nix-your-shell
+nix profile install "nixpkgs#nix-your-shell"
+```
+
 ### nix-env
 
-To install the latest version with `nix-env`, use:
+To install the latest version with `nix-env`, use one of:
 
 ```sh
 nix-env --install --file https://github.com/MercuryTechnologies/nix-your-shell/archive/refs/heads/main.tar.gz
+nix-env --install nix-your-shell
 ```
 
 You can later remove the installed program with `nix-env --uninstall nix-your-shell`.
@@ -54,12 +68,23 @@ You can later remove the installed program with `nix-env --uninstall nix-your-sh
 Run dynamically with `nix run`:
 
 ```sh
-nix run github:MercuryTechnologies/nix-your-shell
+nix run github:MercuryTechnologies/nix-your-shell -- zsh
+nix run "nixpkgs#nix-your-shell" -- zsh
 ```
+
+Note that because the generated shell code will refer to the dynamically-built
+`nix-your-shell` executable, it may get [garbage
+collected][nix-collect-garbage] and cause problems later.
+
+[nix-collect-garbage]: https://nixos.org/manual/nix/stable/package-management/garbage-collection.html
 
 ### Flakes
 
-Add to a NixOS flake configuration:
+`nix-your-shell` is packaged in `nixpkgs`, so you can add `pkgs.nix-your-shell`
+to `environment.systemPackages` if you don't need the bleeding edge releases
+from this repo.
+
+Add to a NixOS flake configuration using the overlay:
 
 `flake.nix`:
 
