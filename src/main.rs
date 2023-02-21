@@ -373,19 +373,6 @@ fn transform_nix(args: Vec<String>, command: &str) -> Vec<String> {
                 // Replace `subcommand` unless it already has a value.
                 if subcommand.is_none() {
                     subcommand = Some(args[i].clone());
-
-                    // We want to add our `--command` flag right after the top-level subcommand, so
-                    // now is the time to do it. We only want to add it for certain subcommands,
-                    // so we match here.
-                    match args[i].as_str() {
-                        "develop" | "shell" => {
-                            ret.push("--command".into());
-                            ret.push(command.into());
-                        }
-
-                        _ => {
-                        }
-                    }
                 }
             }
 
@@ -395,6 +382,20 @@ fn transform_nix(args: Vec<String>, command: &str) -> Vec<String> {
         }
 
         i += 1;
+    }
+
+    // We want to add our `--command` flag right at the end, because `--command` makes *all the
+    // rest of the positional arguments* get parsed as arguments to the command.
+    //
+    // Note that this behavior is unlike `nix-shell`, where the `--command` flag takes one argument
+    // that may include spaces...
+    match subcommand.as_deref() {
+        Some("develop") | Some("shell") => {
+            ret.push("--command".into());
+            ret.push(command.into());
+        }
+
+        _ => {}
     }
 
     ret
