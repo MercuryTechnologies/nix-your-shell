@@ -143,6 +143,11 @@ Add to a NixOS flake configuration using the overlay:
 }
 ```
 
+## Adding support for new shells
+
+See [#23](https://github.com/MercuryTechnologies/nix-your-shell/pull/23) for an
+example of adding support for a new shell to `nix-your-shell`.
+
 ## Comparison with `any-nix-shell`
 
 [`any-nix-shell`](https://github.com/haslersn/any-nix-shell) does roughly the

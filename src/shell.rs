@@ -16,6 +16,10 @@ pub enum ShellKind {
     /// <https://fishshell.com/>
     Fish,
 
+    /// The `bash` shell.
+    /// <https://www.gnu.org/software/bash/>
+    Bash,
+
     /// A different shell.
     Other(String),
 }
@@ -25,6 +29,7 @@ impl Display for ShellKind {
         match self {
             ShellKind::Zsh => write!(f, "zsh"),
             ShellKind::Fish => write!(f, "fish"),
+            ShellKind::Bash => write!(f, "bash"),
             ShellKind::Other(shell) => write!(f, "{shell}"),
         }
     }
@@ -50,6 +55,8 @@ impl Shell {
             ShellKind::Zsh
         } else if file_name.starts_with("fish") {
             ShellKind::Fish
+        } else if file_name.starts_with("bash") {
+            ShellKind::Bash
         } else {
             ShellKind::Other(file_name.to_string())
         };
