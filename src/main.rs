@@ -67,8 +67,8 @@ fn main() -> eyre::Result<()> {
     match args.command.unwrap_or_default() {
         Command::Env => {
             let mut shell_code = match shell.kind {
-                ShellKind::Zsh => {
-                    include_str!("../data/env.zsh")
+                ShellKind::Zsh | ShellKind::Bash => {
+                    include_str!("../data/env.sh")
                 }
 
                 ShellKind::Fish => {
@@ -79,7 +79,7 @@ fn main() -> eyre::Result<()> {
                     return Err(eyre!(
                         "I don't know how to generate a shell environment for `{shell}`"
                     ))
-                    .note("Supported shells are: `zsh` and `fish`")
+                    .note("Supported shells are: `zsh`, `fish`, and `bash`")
                 }
             }
             .to_owned();
