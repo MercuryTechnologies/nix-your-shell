@@ -124,7 +124,7 @@ Add to a NixOS flake configuration using the overlay:
   ...
 }: {
   nixpkgs.overlays = [
-    nix-your-shell.overlay
+    nix-your-shell.overlays.default
   ];
 
   environment.systemPackages = [
