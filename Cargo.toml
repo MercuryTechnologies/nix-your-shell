@@ -12,8 +12,8 @@ categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-camino = "1.1.2"
-clap = { version = "4.1.4", features = ["derive", "wrap_help"] }
+camino = "1.1.4"
+clap = { version = "4.3.4", features = ["derive", "wrap_help"] }
 color-eyre = "0.6.2"
 shell-words = "1.1.0"
 
