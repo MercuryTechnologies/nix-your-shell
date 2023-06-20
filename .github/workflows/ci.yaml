@@ -25,11 +25,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: cachix/install-nix-action@v15
+      - uses: cachix/install-nix-action@v22
         with:
           extra_nix_config: |
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-          nix_path: nixpkgs=channel:nixos-22.05
+          nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Log versions
         run: |
