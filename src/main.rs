@@ -20,6 +20,9 @@ use shell::ShellKind;
 /// - `$HOME/.nix-profile/etc/profile.d/nix.sh`
 /// - `/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh`
 ///
+/// We export this variable to prevent the profile script from being sourced twice, clobbering the
+/// `$PATH`.
+///
 /// See: <https://github.com/MercuryTechnologies/nix-your-shell/issues/25>
 const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
 
