@@ -14,6 +14,18 @@ mod shell;
 use shell::Shell;
 use shell::ShellKind;
 
+/// Environment variable that indicates that the Nix profile has already been sourced.
+///
+/// This is set when a Nix profile script is sourced:
+/// - `$HOME/.nix-profile/etc/profile.d/nix.sh`
+/// - `/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh`
+///
+/// We export this variable to prevent the profile script from being sourced twice, clobbering the
+/// `$PATH`.
+///
+/// See: <https://github.com/MercuryTechnologies/nix-your-shell/issues/25>
+const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
+
 /// A `nix` and `nix-shell` wrapper for shells other than `bash`.
 ///
 /// Use by adding `nix-your-shell | source` to your shell configuration.
@@ -110,13 +122,18 @@ fn main() -> eyre::Result<()> {
             let new_args = transform_nix_shell(args, shell.path.as_str());
             Err(process::Command::new("nix-shell")
                 .args(new_args)
+                .env(NIX_SOURCED_VAR, "1")
                 .exec()
                 .into())
         }
 
         Command::Nix { args } => {
             let new_args = transform_nix(args, shell.path.as_str());
-            Err(process::Command::new("nix").args(new_args).exec().into())
+            Err(process::Command::new("nix")
+                .args(new_args)
+                .env(NIX_SOURCED_VAR, "1")
+                .exec()
+                .into())
         }
     }
 }
