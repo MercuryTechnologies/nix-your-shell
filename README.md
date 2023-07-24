@@ -12,10 +12,28 @@ you prefer inside of Nix shells.
 ## Usage
 
 `nix-your-shell` will print out shell environment code you can source to
-activate `nix-your-shell`.
+activate `nix-your-shell`. For example:
+
+```ShellSession
+$ nix-your-shell fish
+# If you see this output, you probably forgot to pipe it into `source`:
+# nix-your-shell fish | source
+
+function nix-shell --description "Start an interactive shell based on a Nix expression"
+    nix-your-shell fish nix-shell -- $argv
+end
+
+function nix --description "Reproducible and declarative configuration management"
+    nix-your-shell fish nix -- $argv
+end
+```
+
+These replace commands like `nix foo bar` with `nix-your-shell fish nix foo
+bar`. `nix-your-shell` then parses the `nix` arguments and adds a `--command
+fish` argument before launching the underlying command.
 
 Then, `nix-shell`, `nix develop`, and `nix shell` will use your shell instead
-of bash, unless overridden with a `--command` argument.
+of bash, unless overridden explicitly with a `--command` argument.
 
 ### Fish
 
