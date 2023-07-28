@@ -55,6 +55,36 @@ if command -v nix-your-shell > /dev/null; then
 fi
 ```
 
+### Nushell
+
+> [!IMPORTANT]
+> Nushell version >=0.83.0 is required
+
+> [!NOTE]
+> Nushell requires sourced configuration files to exist before `nu` is started.
+
+Add to your `~/.config/nushell/config.nu`:
+
+```nu
+source nix-your-shell.nu
+```
+
+To generate `nix-your-shell.nu` file:
+
+Either manually generate it:
+
+```sh
+nix-your-shell nu | save nix-your-shell.nu
+```
+
+Or populate its content through flakes and home-manager:
+
+```nix
+{ config, pkgs, ... }: {
+  home.file."${config.xdg.configHome}/nushell/nix-your-shell.nu".source = pkgs.nix-your-shell.generate-config "nu";
+}
+```
+
 ## Installation
 
 You can either install `nix-your-shell` from this repository or from `nixpkgs`.
