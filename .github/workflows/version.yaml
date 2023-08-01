@@ -117,7 +117,7 @@ jobs:
 
       - name: Create release PR
         id: release_pr
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           # We push with the repo-scoped GitHub token to avoid branch
           # protections. This token is tied to my account (@9999years) which is
