@@ -20,6 +20,10 @@ pub enum ShellKind {
     /// <https://www.gnu.org/software/bash/>
     Bash,
 
+    /// The `nu` shell
+    /// <https://www.nushell.sh/>
+    Nushell,
+
     /// A different shell.
     Other(String),
 }
@@ -30,6 +34,7 @@ impl Display for ShellKind {
             ShellKind::Zsh => write!(f, "zsh"),
             ShellKind::Fish => write!(f, "fish"),
             ShellKind::Bash => write!(f, "bash"),
+            ShellKind::Nushell => write!(f, "nu"),
             ShellKind::Other(shell) => write!(f, "{shell}"),
         }
     }
@@ -57,6 +62,8 @@ impl Shell {
             ShellKind::Fish
         } else if file_name.starts_with("bash") {
             ShellKind::Bash
+        } else if file_name.starts_with("nu") {
+            ShellKind::Nushell
         } else {
             ShellKind::Other(file_name.to_string())
         };

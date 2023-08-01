@@ -87,11 +87,15 @@ fn main() -> eyre::Result<()> {
                     include_str!("../data/env.fish")
                 }
 
+                ShellKind::Nushell => {
+                    include_str!("../data/env.nu")
+                }
+
                 ShellKind::Other(shell) => {
                     return Err(eyre!(
                         "I don't know how to generate a shell environment for `{shell}`"
                     ))
-                    .note("Supported shells are: `zsh`, `fish`, and `bash`")
+                    .note("Supported shells are: `zsh`, `fish`, `nushell` and `bash`")
                 }
             }
             .to_owned();
@@ -110,8 +114,7 @@ fn main() -> eyre::Result<()> {
             let current_exe =
                 current_exe().wrap_err("Unable to determine absolute path of `nix-your-shell`")?;
             if args.absolute || !executable_is_on_path(&current_exe)? {
-                shell_code =
-                    shell_code.replace("nix-your-shell", &format!("{current_exe} --absolute"));
+                shell_code = shell_code.replace("nix-your-shell", current_exe.as_str());
             }
 
             println!("{shell_code}");

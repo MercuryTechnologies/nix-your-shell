@@ -70,6 +70,10 @@
               cargo fmt --check && echo "\`cargo fmt\` is OK"
               cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
             '';
+
+            passthru.generate-config = shell: final.runCommand "nix-your-shell-config" { } ''
+              ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
+            '';
           };
         }
       );
