@@ -22,7 +22,7 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = import nixpkgs {
-          inherit system;
+          localSystem = system;
           overlays = [self.overlays.default];
         };
       in {
