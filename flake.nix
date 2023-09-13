@@ -26,9 +26,9 @@
           overlays = [self.overlays.default];
         };
       in {
-        packages = rec {
+        packages = {
           nix-your-shell = pkgs.nix-your-shell;
-          default = nix-your-shell;
+          default = self.packages.${system}.nix-your-shell;
         };
         checks = self.packages.${system};
 
