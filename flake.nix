@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
+    systems.url = "github:nix-systems/default";
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
@@ -12,12 +13,12 @@
   outputs = {
     self,
     nixpkgs,
+    systems,
     ...
   }:
     let
       inherit (nixpkgs) lib;
-      systems = ["aarch64-linux" "aarch64-darwin" "x86_64-darwin" "x86_64-linux"];
-      eachSystem = fn: lib.genAttrs systems (system:
+      eachSystem = fn: lib.genAttrs (import systems) (system:
         let
           pkgs = import nixpkgs {
             localSystem = system;
@@ -83,7 +84,7 @@
             meta = {
               homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
               license = lib.licenses.mit;
-              platforms = systems;
+              platforms = import systems;
               mainProgram = "nix-your-shell";
             };
           };
