@@ -53,7 +53,7 @@
         manifest = lib.importTOML ./Cargo.toml;
       in
         final.rustPlatform.buildRustPackage {
-          pname = "nix-your-shell";
+          pname = manifest.package.name;
           inherit (manifest.package) version;
 
           cargoLock = {lockFile = ./Cargo.lock;};
@@ -77,10 +77,10 @@
             '';
 
           meta = {
-            homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
+            inherit (manifest.package) description homepage;
             license = lib.licenses.mit;
             platforms = import systems;
-            mainProgram = "nix-your-shell";
+            mainProgram = manifest.package.name;
           };
         };
     };
