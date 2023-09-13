@@ -108,7 +108,7 @@ jobs:
       - name: Increment `flake.nix` version
         run: |
           sed -i \
-              -e "s/version = \"[^\"]*\"; # LOAD-BEARING COMMENT/version = \"${{ steps.new_cargo_metadata.outputs.version }}\"; # LOAD-BEARING COMMENT/" \
+              -e "s/version = \"[^\"]*\"; # @VERSION@/version = \"${{ steps.new_cargo_metadata.outputs.version }}\"; # @VERSION@/" \
               flake.nix
 
           # Commit the new changes

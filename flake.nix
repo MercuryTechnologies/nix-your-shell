@@ -8,87 +8,82 @@
       url = "github:edolstra/flake-compat";
       flake = false;
     };
+    alejandra.url = "github:kamadorueda/alejandra";
   };
 
   outputs = {
     self,
     nixpkgs,
     systems,
+    alejandra,
     ...
-  }:
-    let
-      inherit (nixpkgs) lib;
-      eachSystem = fn: lib.genAttrs (import systems) (system:
-        let
-          pkgs = import nixpkgs {
-            localSystem = system;
-            overlays = [self.overlays.default];
-          };
-        in
-          fn pkgs system
-      );
-    in {
-      packages = eachSystem (pkgs: system: {
-        nix-your-shell = pkgs.nix-your-shell;
-        default = self.packages.${system}.nix-your-shell;
+  }: let
+    inherit (nixpkgs) lib;
+    eachSystem = fn:
+      lib.genAttrs (import systems) (system: let
+        pkgs = import nixpkgs {
+          localSystem = system;
+          overlays = [self.overlays.default];
+        };
+      in
+        fn pkgs system);
+  in {
+    packages = eachSystem (pkgs: system: {
+      nix-your-shell = pkgs.nix-your-shell;
+      default = self.packages.${system}.nix-your-shell;
+    });
+
+    checks = eachSystem (_: system: self.packages.${system});
+
+    # for debugging
+    # inherit pkgs;
+
+    devShells = eachSystem (pkgs: system: {
+      default = pkgs.nix-your-shell.overrideAttrs (old: {
+        # Make rust-analyzer work
+        RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+
+        # Any dev tools you use in excess of the rust ones
+        nativeBuildInputs = old.nativeBuildInputs;
       });
+    });
 
-      checks = eachSystem (_: system: self.packages.${system});
+    overlays.default = final: prev: {
+      nix-your-shell = final.rustPlatform.buildRustPackage {
+        pname = "nix-your-shell";
+        # The comment below is a target for `sed` to match. Do not remove.
+        # See `.github/workflows/version.yaml`.
+        version = "1.3.0"; # @VERSION@
 
-        # for debugging
-        # inherit pkgs;
+        cargoLock = {lockFile = ./Cargo.lock;};
 
-        devShells = eachSystem (pkgs: system: {
-          default = pkgs.nix-your-shell.overrideAttrs (
-            old: {
-              # Make rust-analyzer work
-              RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+        src = ./.;
 
-              # Any dev tools you use in excess of the rust ones
-              nativeBuildInputs =
-                old.nativeBuildInputs;
-            }
-          );
-        });
+        # Tools on the builder machine needed to build; e.g. pkg-config
+        nativeBuildInputs = [final.rustfmt final.clippy];
 
-      overlays.default = (
-        final: prev: {
-          nix-your-shell = final.rustPlatform.buildRustPackage {
-            pname = "nix-your-shell";
-            version = "1.3.0"; # LOAD-BEARING COMMENT. See: `.github/workflows/version.yaml`
+        # Native libs
+        buildInputs = [];
 
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
+        postCheck = ''
+          cargo fmt --check && echo "\`cargo fmt\` is OK"
+          cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
+        '';
 
-            src = ./.;
+        passthru.generate-config = shell:
+          final.runCommand "nix-your-shell-config" {} ''
+            ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
+          '';
 
-            # Tools on the builder machine needed to build; e.g. pkg-config
-            nativeBuildInputs = [
-              final.rustfmt
-              final.clippy
-            ];
-
-            # Native libs
-            buildInputs = [];
-
-            postCheck = ''
-              cargo fmt --check && echo "\`cargo fmt\` is OK"
-              cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
-            '';
-
-            passthru.generate-config = shell: final.runCommand "nix-your-shell-config" { } ''
-              ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
-            '';
-
-            meta = {
-              homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
-              license = lib.licenses.mit;
-              platforms = import systems;
-              mainProgram = "nix-your-shell";
-            };
-          };
-        }
-      );
+        meta = {
+          homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
+          license = lib.licenses.mit;
+          platforms = import systems;
+          mainProgram = "nix-your-shell";
+        };
+      };
     };
+
+    formatter = eachSystem (_: system: alejandra.packages.${system}.default);
+  };
 }
