@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
-    flake-utils.url = "github:numtide/flake-utils";
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
@@ -13,41 +12,44 @@
   outputs = {
     self,
     nixpkgs,
-    flake-utils,
     ...
   }:
     let
       inherit (nixpkgs) lib;
-    in
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = import nixpkgs {
-          localSystem = system;
-          overlays = [self.overlays.default];
-        };
-      in {
-        packages = {
-          nix-your-shell = pkgs.nix-your-shell;
-          default = self.packages.${system}.nix-your-shell;
-        };
-        checks = self.packages.${system};
+      systems = ["aarch64-linux" "aarch64-darwin" "x86_64-darwin" "x86_64-linux"];
+      eachSystem = fn: lib.genAttrs systems (system:
+        let
+          pkgs = import nixpkgs {
+            localSystem = system;
+            overlays = [self.overlays.default];
+          };
+        in
+          fn pkgs system
+      );
+    in {
+      packages = eachSystem (pkgs: system: {
+        nix-your-shell = pkgs.nix-your-shell;
+        default = self.packages.${system}.nix-your-shell;
+      });
+
+      checks = eachSystem (_: system: self.packages.${system});
 
         # for debugging
         # inherit pkgs;
 
-        devShells.default = pkgs.nix-your-shell.overrideAttrs (
-          old: {
-            # Make rust-analyzer work
-            RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+        devShells = eachSystem (pkgs: system: {
+          default = pkgs.nix-your-shell.overrideAttrs (
+            old: {
+              # Make rust-analyzer work
+              RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
 
-            # Any dev tools you use in excess of the rust ones
-            nativeBuildInputs =
-              old.nativeBuildInputs;
-          }
-        );
-      }
-    )
-    // {
+              # Any dev tools you use in excess of the rust ones
+              nativeBuildInputs =
+                old.nativeBuildInputs;
+            }
+          );
+        });
+
       overlays.default = (
         final: prev: {
           nix-your-shell = final.rustPlatform.buildRustPackage {
@@ -81,7 +83,7 @@
             meta = {
               homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
               license = lib.licenses.mit;
-              platforms = flake-utils.lib.defaultSystems;
+              platforms = systems;
               mainProgram = "nix-your-shell";
             };
           };
