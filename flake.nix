@@ -16,6 +16,9 @@
     flake-utils,
     flake-compat,
   }:
+    let
+      inherit (nixpkgs) lib;
+    in
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = import nixpkgs {
@@ -74,6 +77,13 @@
             passthru.generate-config = shell: final.runCommand "nix-your-shell-config" { } ''
               ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
             '';
+
+            meta = {
+              homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
+              license = lib.licenses.mit;
+              platforms = flake-utils.lib.defaultSystems;
+              mainProgram = "nix-your-shell";
+            };
           };
         }
       );
