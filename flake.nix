@@ -14,7 +14,7 @@
     self,
     nixpkgs,
     flake-utils,
-    flake-compat,
+    ...
   }:
     let
       inherit (nixpkgs) lib;
