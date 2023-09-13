@@ -49,39 +49,40 @@
     });
 
     overlays.default = final: prev: {
-      nix-your-shell = final.rustPlatform.buildRustPackage {
-        pname = "nix-your-shell";
-        # The comment below is a target for `sed` to match. Do not remove.
-        # See `.github/workflows/version.yaml`.
-        version = "1.3.0"; # @VERSION@
+      nix-your-shell = let
+        manifest = lib.importTOML ./Cargo.toml;
+      in
+        final.rustPlatform.buildRustPackage {
+          pname = "nix-your-shell";
+          inherit (manifest.package) version;
 
-        cargoLock = {lockFile = ./Cargo.lock;};
+          cargoLock = {lockFile = ./Cargo.lock;};
 
-        src = ./.;
+          src = ./.;
 
-        # Tools on the builder machine needed to build; e.g. pkg-config
-        nativeBuildInputs = [final.rustfmt final.clippy];
+          # Tools on the builder machine needed to build; e.g. pkg-config
+          nativeBuildInputs = [final.rustfmt final.clippy];
 
-        # Native libs
-        buildInputs = [];
+          # Native libs
+          buildInputs = [];
 
-        postCheck = ''
-          cargo fmt --check && echo "\`cargo fmt\` is OK"
-          cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
-        '';
-
-        passthru.generate-config = shell:
-          final.runCommand "nix-your-shell-config" {} ''
-            ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
+          postCheck = ''
+            cargo fmt --check && echo "\`cargo fmt\` is OK"
+            cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
           '';
 
-        meta = {
-          homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
-          license = lib.licenses.mit;
-          platforms = import systems;
-          mainProgram = "nix-your-shell";
+          passthru.generate-config = shell:
+            final.runCommand "nix-your-shell-config" {} ''
+              ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
+            '';
+
+          meta = {
+            homepage = "https://github.com/MercuryTechnologies/nix-your-shell";
+            license = lib.licenses.mit;
+            platforms = import systems;
+            mainProgram = "nix-your-shell";
+          };
         };
-      };
     };
 
     formatter = eachSystem (_: system: alejandra.packages.${system}.default);

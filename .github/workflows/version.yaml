@@ -105,16 +105,6 @@ jobs:
         run: |
           echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
 
-      - name: Increment `flake.nix` version
-        run: |
-          sed -i \
-              -e "s/version = \"[^\"]*\"; # @VERSION@/version = \"${{ steps.new_cargo_metadata.outputs.version }}\"; # @VERSION@/" \
-              flake.nix
-
-          # Commit the new changes
-          git add flake.nix
-          git commit --amend --no-edit
-
       - name: Create release PR
         id: release_pr
         uses: peter-evans/create-pull-request@v5
