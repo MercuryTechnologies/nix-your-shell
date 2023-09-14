@@ -33,7 +33,29 @@
       default = self.packages.${system}.nix-your-shell;
     });
 
-    checks = eachSystem (_: system: self.packages.${system});
+    checks = eachSystem (pkgs: system:
+      self.packages.${system}
+      // {
+        check-formatting = pkgs.stdenvNoCC.mkDerivation {
+          name = "check-formatting";
+          src = ./.;
+          phases = ["checkPhase" "installPhase"];
+          doCheck = true;
+          nativeCheckInputs = [
+            pkgs.cargo
+            pkgs.rustfmt
+            alejandra.packages.${system}.default
+          ];
+          checkPhase = ''
+            cd $src
+            echo 'Checking Nix code formatting with Alejandra:'
+            alejandra --check .
+            echo 'Checking Rust code formatting with `cargo fmt`:'
+            cargo fmt --check
+          '';
+          installPhase = "touch $out";
+        };
+      });
 
     # for debugging
     # inherit pkgs;
