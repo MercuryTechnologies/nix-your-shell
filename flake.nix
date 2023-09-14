@@ -66,9 +66,9 @@
           # Native libs
           buildInputs = [];
 
-          postCheck = ''
-            cargo fmt --check && echo "\`cargo fmt\` is OK"
-            cargo clippy -- --deny warnings && echo "\`cargo clippy\` is OK"
+          preCheck = ''
+            cargo check --frozen
+            cargo clippy -- --deny warnings
           '';
 
           passthru.generate-config = shell:
