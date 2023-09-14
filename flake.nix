@@ -79,6 +79,7 @@
           meta = {
             inherit (manifest.package) description homepage;
             license = lib.licenses.mit;
+            maintainers = [lib.maintainers._9999years];
             platforms = import systems;
             mainProgram = manifest.package.name;
           };
