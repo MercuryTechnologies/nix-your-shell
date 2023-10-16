@@ -33,6 +33,13 @@ const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
 #[command(version, author, about)]
 #[command(max_term_width = 100, disable_help_subcommand = true)]
 pub struct Opts {
+    /// Log filter directives, of the form `target[span{field=value}]=level`, where all components
+    /// except the level are optional.
+    ///
+    /// Try `debug` or `trace`.
+    #[arg(long, default_value = "info", env = "NIX_YOUR_SHELL_LOG")]
+    log: String,
+
     /// Print absolute paths to `nix-your-shell` in shell environment code.
     ///
     /// Note that this will not transform the shell argument to an absolute path.
@@ -71,10 +78,11 @@ impl Default for Command {
 
 fn main() -> eyre::Result<()> {
     let args = Opts::parse();
-
     color_eyre::install()?;
+    install_tracing(&args.log)?;
 
-    let shell = Shell::from_path(args.shell)?;
+    let shell = Shell::from_path(&args.shell)?;
+    tracing::debug!(%shell, input=args.shell, "Detected shell");
 
     match args.command.unwrap_or_default() {
         Command::Env => {
@@ -123,6 +131,12 @@ fn main() -> eyre::Result<()> {
 
         Command::NixShell { args } => {
             let new_args = transform_nix_shell(args, shell.path.as_str());
+            tracing::debug!(
+                command = shell_words::join(
+                    std::iter::once("nix-shell").chain(new_args.iter().map(|s| s.as_str()))
+                ),
+                "Launching nix-shell"
+            );
             Err(process::Command::new("nix-shell")
                 .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
@@ -132,6 +146,12 @@ fn main() -> eyre::Result<()> {
 
         Command::Nix { args } => {
             let new_args = transform_nix(args, shell.path.as_str());
+            tracing::debug!(
+                command = shell_words::join(
+                    std::iter::once("nix").chain(new_args.iter().map(|s| s.as_str()))
+                ),
+                "Launching nix"
+            );
             Err(process::Command::new("nix")
                 .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
@@ -139,6 +159,24 @@ fn main() -> eyre::Result<()> {
                 .into())
         }
     }
+}
+
+fn install_tracing(filter_directives: &str) -> eyre::Result<()> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::Layer;
+
+    let env_filter = tracing_subscriber::EnvFilter::try_new(filter_directives)?;
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .without_time()
+        .with_filter(env_filter);
+
+    let registry = tracing_subscriber::registry();
+
+    registry.with(fmt_layer).init();
+
+    Ok(())
 }
 
 /// Get the path to the current executable.
