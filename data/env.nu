@@ -11,10 +11,10 @@ def call-wrapper (command: string, args: list<string>) {
   }
 }
 
-extern-wrapped nix-shell (...args) {
+def --wrapped nix-shell (...args) {
   call-wrapper nix-shell $args
 }
 
-extern-wrapped nix (...args) {
+def --wrapped nix (...args) {
   call-wrapper nix $args
 }
