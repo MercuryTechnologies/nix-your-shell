@@ -58,7 +58,7 @@ fi
 ### Nushell
 
 > [!IMPORTANT]
-> Nushell version >=0.83.0 is required
+> Nushell version >=0.87.0 is required
 
 > [!NOTE]
 > Nushell requires sourced configuration files to exist before `nu` is started.
@@ -69,15 +69,15 @@ Add to your `~/.config/nushell/config.nu`:
 source nix-your-shell.nu
 ```
 
-To generate `nix-your-shell.nu` file:
+To generate the `nix-your-shell.nu` file:
 
 Either manually generate it:
 
-```sh
-nix-your-shell nu | save nix-your-shell.nu
+```nu
+nix-your-shell nu | save $env.XDG_CONFIG_HOME/nushell/nix-your-shell.nu
 ```
 
-Or populate its content through flakes and home-manager:
+Or better yet, ensure it's kept updated alongside `nix-your-shell`. Populate file contents through home-manager:
 
 ```nix
 { config, pkgs, ... }: {
