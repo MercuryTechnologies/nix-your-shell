@@ -55,6 +55,15 @@ if command -v nix-your-shell > /dev/null; then
 fi
 ```
 
+### Xonsh
+
+Add to your `~/.config/xonsh/rc.xsh`
+
+```xonsh
+if !(which nix-your-shell):
+    nix-your-shell xonsh | source
+```
+
 ### Nushell
 
 > [!IMPORTANT]
