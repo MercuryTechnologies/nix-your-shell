@@ -24,6 +24,10 @@ pub enum ShellKind {
     /// <https://www.nushell.sh/>
     Nushell,
 
+    /// The `xonsh` shell.
+    /// <https://xon.sh>
+    Xonsh,
+
     /// A different shell.
     Other(String),
 }
@@ -35,6 +39,7 @@ impl Display for ShellKind {
             ShellKind::Fish => write!(f, "fish"),
             ShellKind::Bash => write!(f, "bash"),
             ShellKind::Nushell => write!(f, "nu"),
+            ShellKind::Xonsh => write!(f, "xonsh"),
             ShellKind::Other(shell) => write!(f, "{shell}"),
         }
     }
@@ -64,6 +69,8 @@ impl Shell {
             ShellKind::Bash
         } else if file_name.starts_with("nu") {
             ShellKind::Nushell
+        } else if file_name.starts_with("xonsh") {
+            ShellKind::Xonsh
         } else {
             ShellKind::Other(file_name.to_string())
         };

@@ -99,11 +99,15 @@ fn main() -> eyre::Result<()> {
                     include_str!("../data/env.nu")
                 }
 
+                ShellKind::Xonsh => {
+                    include_str!("../data/env.xsh")
+                }
+
                 ShellKind::Other(shell) => {
                     return Err(eyre!(
                         "I don't know how to generate a shell environment for `{shell}`"
                     ))
-                    .note("Supported shells are: `zsh`, `fish`, `nushell` and `bash`")
+                    .note("Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`")
                 }
             }
             .to_owned();
