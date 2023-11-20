@@ -19,6 +19,8 @@ jobs:
     if: github.event.pull_request.merged == true
       && contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - run: |
           echo "This is a canonical hack to run GitHub Actions on merged PRs"
@@ -142,6 +144,9 @@ jobs:
       - if_merged
       - build
       - version
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Tag the release
         uses: mathieudutour/github-tag-action@v6.0
