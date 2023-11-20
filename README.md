@@ -77,7 +77,7 @@ Either manually generate it:
 nix-your-shell nu | save $env.XDG_CONFIG_HOME/nushell/nix-your-shell.nu
 ```
 
-Or ensure it's kept updated alongside `nix-your-shell` by populate the file with [`home-manager`][home-manager]:
+Or ensure it's kept updated alongside `nix-your-shell` by populating the file with [`home-manager`][home-manager]:
 
 [home-manager]: https://nix-community.github.io/home-manager/
 
