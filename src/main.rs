@@ -48,6 +48,10 @@ pub struct Opts {
     #[arg(long)]
     absolute: bool,
 
+    /// Use `nom` (`nix-output-monitor`) instead of `nix` for running commands.
+    #[arg(long)]
+    nom: bool,
+
     /// The shell to use for wrapped commands and the shell environment.
     /// This can be an executable name like `fish` or the path to an executable like
     /// `/opt/homebrew/bin/fish`.
@@ -77,14 +81,14 @@ impl Default for Command {
 }
 
 fn main() -> eyre::Result<()> {
-    let args = Opts::parse();
+    let opts = Opts::parse();
     color_eyre::install()?;
-    install_tracing(&args.log)?;
+    install_tracing(&opts.log)?;
 
-    let shell = Shell::from_path(&args.shell)?;
-    tracing::debug!(%shell, input=args.shell, "Detected shell");
+    let shell = Shell::from_path(&opts.shell)?;
+    tracing::debug!(%shell, input=opts.shell, "Detected shell");
 
-    match args.command.unwrap_or_default() {
+    match opts.command.unwrap_or_default() {
         Command::Env => {
             let mut shell_code = match shell.kind {
                 ShellKind::Zsh | ShellKind::Bash => {
@@ -114,14 +118,18 @@ fn main() -> eyre::Result<()> {
             // We could make this a bit "cleaner" with an actual templating language, but it's nice
             // that the snippets in `../data/` are valid code and not templates.
 
-            shell_code = shell_code.replace(
-                "nix-your-shell",
-                &format!("nix-your-shell {}", shell_words::quote(shell.path.as_str())),
-            );
+            let mut shell_args = shell_words::quote(shell.path.as_str());
+
+            if opts.nom {
+                shell_args += " --nom";
+            }
+
+            shell_code =
+                shell_code.replace("nix-your-shell", &format!("nix-your-shell {}", shell_args));
 
             let current_exe =
                 current_exe().wrap_err("Unable to determine absolute path of `nix-your-shell`")?;
-            if args.absolute || !executable_is_on_path(&current_exe)? {
+            if opts.absolute || !executable_is_on_path(&current_exe)? {
                 shell_code = shell_code.replace("nix-your-shell", current_exe.as_str());
             }
 
@@ -131,13 +139,14 @@ fn main() -> eyre::Result<()> {
 
         Command::NixShell { args } => {
             let new_args = transform_nix_shell(args, shell.path.as_str());
+            let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
             tracing::debug!(
                 command = shell_words::join(
-                    std::iter::once("nix-shell").chain(new_args.iter().map(|s| s.as_str()))
+                    std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str()))
                 ),
                 "Launching nix-shell"
             );
-            Err(process::Command::new("nix-shell")
+            Err(process::Command::new(prog)
                 .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
                 .exec()
@@ -146,13 +155,14 @@ fn main() -> eyre::Result<()> {
 
         Command::Nix { args } => {
             let new_args = transform_nix(args, shell.path.as_str());
+            let prog = if opts.nom { "nom" } else { "nix" };
             tracing::debug!(
                 command = shell_words::join(
-                    std::iter::once("nix").chain(new_args.iter().map(|s| s.as_str()))
+                    std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str()))
                 ),
                 "Launching nix"
             );
-            Err(process::Command::new("nix")
+            Err(process::Command::new(prog)
                 .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
                 .exec()
