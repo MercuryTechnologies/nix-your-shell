@@ -12,6 +12,7 @@ categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+calm_io = "0.1.1"
 camino = "1.1.4"
 clap = { version = "4.3.4", features = ["derive", "wrap_help", "env"] }
 color-eyre = "0.6.2"

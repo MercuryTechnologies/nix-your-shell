@@ -2,6 +2,7 @@
 use std::os::unix::process::CommandExt;
 use std::process;
 
+use calm_io::stdout as println;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -137,7 +138,7 @@ fn main() -> eyre::Result<()> {
                 shell_code = shell_code.replace("nix-your-shell", current_exe.as_str());
             }
 
-            println!("{shell_code}");
+            let _ = println!("{shell_code}");
             Ok(())
         }
 
