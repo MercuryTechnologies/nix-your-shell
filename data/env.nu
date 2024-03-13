@@ -4,9 +4,9 @@
 def _nix_your_shell (command: string, args: list<string>) {
   if not (which nix-your-shell | is-empty) {
     let args = ["--"] ++ $args
-    run-external nix-your-shell $command $args
+    run-external nix-your-shell $command ...$args
   } else {
-    run-external $command $args
+    run-external $command ...$args
   }
 }
 
