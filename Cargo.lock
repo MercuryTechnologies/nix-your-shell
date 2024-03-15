@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "nix-your-shell"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "calm_io",
  "camino",
