@@ -1,3 +1,16 @@
+[workspace]
+members = [
+    "test-harness", "test-harness-macro",
+]
+resolver = "2"
+
+[workspace.dependencies]
+miette = { version = "7.6.0", features = ["fancy"] }
+command-error = { version = "0.8.0", features = ["miette"] }
+utf8-command = "1.0.1"
+rexpect = "0.6.3"
+tempfile = "3.24"
+
 [package]
 name = "nix-your-shell"
 version = "1.4.7"
@@ -11,11 +24,14 @@ categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "nix_your_shell"
+
 [dependencies]
 calm_io = "0.1.1"
 camino = "1.2.2"
 clap = { version = "4.5.54", features = ["derive", "wrap_help", "env"] }
-miette = { version = "7.6.0", features = ["fancy"] }
+miette.workspace = true
 minijinja = { version = "2.14.0", features = ["json"] }
 shell-words = "1.1.1"
 tracing = { version = "0.1.44", features = ["attributes"] }
@@ -26,6 +42,13 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"]
 inherits = "release"
 debug = true
 split-debuginfo = "packed"
+
+[dev-dependencies]
+command-error.workspace = true
+expect-test = "1.5.1"
+rexpect.workspace = true
+test-harness = { path = "test-harness" }
+tracing-test = "0.2.5"
 
 # See: https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
 [package.metadata.release]

@@ -1,0 +1,54 @@
+rec {
+  bash = "@bash@";
+  coreutils = "@coreutils@";
+  system = "@system@";
+
+  # Minimal stdenv that provides a setup script for `nix develop`.
+  stdenv = derivation {
+    name = "stdenv";
+    inherit system;
+    builder = bash;
+    args = [
+      "-c"
+      ''
+        export PATH="${coreutils}/bin"
+        mkdir -p $out
+        cat > $out/setup << 'SETUP_EOF'
+        #!${bash}
+        export outputs=out
+
+        # Add nativeBuildInputs to PATH (space-separated list of store paths).
+        if [ -n "$nativeBuildInputs" ]; then
+          for pkg in $nativeBuildInputs; do
+            if [ -d "$pkg/bin" ]; then
+              export PATH="$pkg/bin''${PATH:+:$PATH}"
+            fi
+          done
+        fi
+
+        if [ -n "$buildCommand" ]; then
+          eval "$buildCommand"
+        fi
+        SETUP_EOF
+      ''
+    ];
+  };
+
+  mkDerivation =
+    args:
+    derivation (
+      {
+        inherit system stdenv;
+        builder = bash;
+        args = [
+          "-e"
+          "${stdenv}/setup"
+        ];
+        PATH = "${coreutils}/bin";
+      }
+      // removeAttrs args [
+        "builder"
+        "meta"
+      ]
+    );
+}
