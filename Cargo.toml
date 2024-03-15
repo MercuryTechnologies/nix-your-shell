@@ -26,6 +26,10 @@ inherits = "release"
 debug = true
 split-debuginfo = "packed"
 
+[dev-dependencies]
+expect-test = "1.4.1"
+test_bin = "0.4.0"
+
 # See: https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
 [package.metadata.release]
 # After releasing a new version, don't bump the version to a pre-release.
