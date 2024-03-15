@@ -184,6 +184,7 @@ fn install_tracing(filter_directives: &str) -> eyre::Result<()> {
     let env_filter = tracing_subscriber::EnvFilter::try_new(filter_directives)?;
 
     let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
         .without_time()
         .with_filter(env_filter);
 
