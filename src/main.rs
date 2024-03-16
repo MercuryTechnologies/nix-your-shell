@@ -93,21 +93,21 @@ fn main() -> eyre::Result<()> {
 
     match opts.command.unwrap_or_default() {
         Command::Env => {
-            let mut shell_code = match shell.kind {
+            let template = match shell.kind {
                 ShellKind::Zsh | ShellKind::Bash => {
-                    include_str!("../data/env.sh")
+                    include_str!("../data/env.sh.j2")
                 }
 
                 ShellKind::Fish => {
-                    include_str!("../data/env.fish")
+                    include_str!("../data/env.fish.j2")
                 }
 
                 ShellKind::Nushell => {
-                    include_str!("../data/env.nu")
+                    include_str!("../data/env.nu.j2")
                 }
 
                 ShellKind::Xonsh => {
-                    include_str!("../data/env.xsh")
+                    include_str!("../data/env.xsh.j2")
                 }
 
                 ShellKind::Other(shell) => {
@@ -116,31 +116,23 @@ fn main() -> eyre::Result<()> {
                     ))
                     .note("Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`")
                 }
-            }
-            .to_owned();
-
-            // Do some string replacements to reflect the arguments passed to `nix-your-shell` in
-            // the generated code.
-            //
-            // We could make this a bit "cleaner" with an actual templating language, but it's nice
-            // that the snippets in `../data/` are valid code and not templates.
-
-            let mut shell_args = shell_words::quote(shell.path.as_str());
-
-            if opts.nom {
-                shell_args += " --nom";
-            }
-
-            shell_code =
-                shell_code.replace("nix-your-shell", &format!("nix-your-shell {}", shell_args));
+            };
 
             let current_exe =
                 current_exe().wrap_err("Unable to determine absolute path of `nix-your-shell`")?;
-            if opts.absolute || !executable_is_on_path(&current_exe)? {
-                shell_code = shell_code.replace("nix-your-shell", current_exe.as_str());
-            }
 
-            let _ = println!("{shell_code}");
+            let formatted = minijinja::render!(
+                template,
+                executable => if opts.absolute || !executable_is_on_path(&current_exe)? {
+                    current_exe.as_str()
+                } else {
+                    "nix-your-shell"
+                },
+                extra_args => if opts.nom { vec!["--nom"] } else { vec![] },
+                shell => shell.path.as_str(),
+            );
+
+            let _ = println!("{formatted}");
             Ok(())
         }
 
