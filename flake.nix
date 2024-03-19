@@ -3,111 +3,71 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     systems.url = "github:nix-systems/default";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
+    advisory-db = {
+      url = "github:rustsec/advisory-db";
       flake = false;
     };
-    alejandra.url = "github:kamadorueda/alejandra";
   };
 
-  outputs = {
+  nixConfig = {
+    extra-substituters = ["https://cache.garnix.io"];
+    extra-trusted-substituters = ["https://cache.garnix.io"];
+    extra-trusted-public-keys = ["cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="];
+  };
+
+  outputs = inputs @ {
     self,
     nixpkgs,
     systems,
-    alejandra,
     ...
   }: let
     inherit (nixpkgs) lib;
-    eachSystem = fn:
-      lib.genAttrs (import systems) (system: let
-        pkgs = import nixpkgs {
-          localSystem = system;
-          overlays = [self.overlays.default];
-        };
-      in
-        fn pkgs system);
+    makePkgs = system:
+      import nixpkgs {
+        localSystem = system;
+      };
+    eachSystem = fn: lib.genAttrs (import systems) fn;
   in {
-    packages = eachSystem (pkgs: system: {
-      nix-your-shell = pkgs.nix-your-shell;
-      default = self.packages.${system}.nix-your-shell;
-    });
+    pkgs = eachSystem (system: makePkgs system);
 
-    checks = eachSystem (pkgs: system:
-      self.packages.${system}
+    localPkgs = eachSystem (system: self.pkgs.${system}.callPackage ./nix/makePackages.nix {inherit inputs;});
+
+    packages = eachSystem (system: let
+      localPkgs = self.localPkgs.${system};
+    in
+      (lib.filterAttrs (_name: lib.isDerivation) localPkgs)
       // {
-        check-formatting = pkgs.stdenvNoCC.mkDerivation {
-          name = "check-formatting";
-          src = ./.;
-          phases = ["checkPhase" "installPhase"];
-          doCheck = true;
-          nativeCheckInputs = [
-            pkgs.cargo
-            pkgs.rustfmt
-            alejandra.packages.${system}.default
+        default = localPkgs.nix-your-shell;
+
+        nix-your-shell-from-overlay = let
+          overlayed = self.pkgs.${system}.appendOverlays [
+            self.overlays.default
           ];
-          checkPhase = ''
-            cd $src
-            echo 'Checking Nix code formatting with Alejandra:'
-            alejandra --check .
-            echo 'Checking Rust code formatting with `cargo fmt`:'
-            cargo fmt --check
-          '';
-          installPhase = "touch $out";
-        };
+        in
+          overlayed.nix-your-shell;
       });
 
-    # for debugging
-    # inherit pkgs;
+    checks = eachSystem (
+      system:
+        builtins.removeAttrs
+        self.localPkgs.${system}.checks
+        # Ugh.
+        ["override" "overrideDerivation"]
+    );
 
-    devShells = eachSystem (pkgs: system: {
-      default = pkgs.nix-your-shell.overrideAttrs (old: {
-        # Make rust-analyzer work
-        RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
-
-        # Any dev tools you use in excess of the rust ones
-        nativeBuildInputs = old.nativeBuildInputs;
-      });
+    devShells = eachSystem (system: {
+      default = self.localPkgs.${system}.nix-your-shell.devShell;
     });
 
-    overlays.default = final: prev: {
-      nix-your-shell = let
-        manifest = lib.importTOML ./Cargo.toml;
-      in
-        final.rustPlatform.buildRustPackage {
-          pname = manifest.package.name;
-          inherit (manifest.package) version;
-
-          cargoLock = {lockFile = ./Cargo.lock;};
-
-          src = ./.;
-
-          # Tools on the builder machine needed to build; e.g. pkg-config
-          nativeBuildInputs = [final.rustfmt final.clippy];
-
-          # Native libs
-          buildInputs = [];
-
-          preCheck = ''
-            cargo check --frozen
-            cargo clippy -- --deny warnings
-          '';
-
-          passthru.generate-config = shell:
-            final.runCommand "nix-your-shell-config" {} ''
-              ${final.nix-your-shell}/bin/nix-your-shell ${shell} >> $out
-            '';
-
-          meta = {
-            inherit (manifest.package) description homepage;
-            license = lib.licenses.mit;
-            maintainers = [lib.maintainers._9999years];
-            platforms = import systems;
-            mainProgram = manifest.package.name;
-          };
-        };
+    overlays.default = final: prev: let
+      localPkgs = prev.callPackage ./nix/makePackages.nix {inherit inputs;};
+    in {
+      inherit (localPkgs) nix-your-shell;
     };
-
-    formatter = eachSystem (_: system: alejandra.packages.${system}.default);
   };
 }

@@ -9,13 +9,13 @@
 # and update the `REPO_GITHUB_TOKEN` secret to a new, valid token.
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
     branches:
       - main
 
-name: Update versions and release
+name: Update versions and create release PR
 
 jobs:
   # We make `if_merged` a `needs:` of the other jobs here to only run this
@@ -31,7 +31,7 @@ jobs:
     steps:
       - run: |
           echo "This is a canonical hack to run GitHub Actions on merged PRs"
-          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-workflow-when-a-pull-request-merges"
+          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges"
 
   bump_type:
     name: Determine version bump type
@@ -56,7 +56,7 @@ jobs:
           fi
 
   version:
-    name: Update and tag version numbers
+    name: Bump version and create release PR
     permissions:
       pull-requests: write
     needs:
@@ -70,42 +70,23 @@ jobs:
           # Fetch all history/tags (needed to compute versions)
           fetch-depth: 0
 
-      - name: Install rustup
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Download and install `cargo-release`
-        run: |
-          set -v
-          pushd "$(mktemp -d)"
-          curl -L -o cargo-release.tar.gz \
-            https://github.com/crate-ci/cargo-release/releases/download/v0.21.1/cargo-release-v0.21.1-x86_64-unknown-linux-gnu.tar.gz
-          tar -xvf cargo-release.tar.gz
-          install -d ~/.local/bin
-          install cargo-release ~/.local/bin
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          popd
-          ~/.local/bin/cargo-release release --version
+      - uses: cachix/install-nix-action@v22
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+            accept-flake-config = true
 
       - name: Get old version number
         id: old_cargo_metadata
-        run: |
-          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
 
       - name: Increment `Cargo.toml` version
-        # `cargo-release` changes the version numbers in `Cargo.toml` and
-        # `Cargo.lock` and commits the changes.
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          cargo-release release \
-            --execute \
-            --no-confirm \
-            ${{ needs.bump_type.outputs.bump_type }}
+        run: nix run .#make-release-commit -- ${{ needs.bump_type.outputs.bump_type }}
 
       - name: Get new version number
         id: new_cargo_metadata
-        run: |
-          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
 
       - name: Create release PR
         id: release_pr
@@ -128,7 +109,7 @@ jobs:
           labels: release
 
       - name: Comment on PR with link to release PR
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
