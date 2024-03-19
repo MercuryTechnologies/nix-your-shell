@@ -9,7 +9,7 @@ lib.pipe pkgs [
             check:
               lib.nameValuePair
               # The Nix CLI doesn't like attribute names that contain dots.
-              (builtins.replaceStrings ["."] ["-"] check.name)
+              (builtins.replaceStrings ["."] ["-"] check.pname)
               check
           ))
       ]
