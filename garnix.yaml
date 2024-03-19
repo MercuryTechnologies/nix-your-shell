@@ -1,0 +1,10 @@
+---
+# See: https://garnix.io/docs/yaml_config
+builds:
+  include:
+    - devShells.x86_64-linux.default
+    - devShells.aarch64-darwin.default
+    - 'packages.x86_64-linux.*'
+    - 'packages.aarch64-darwin.*'
+    - 'checks.x86_64-linux.*'
+    - 'checks.aarch64-darwin.*'

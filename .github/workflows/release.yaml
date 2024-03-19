@@ -3,7 +3,7 @@
 
 # Run when PRs to main are closed.
 on:
-  pull_request:
+  pull_request_target:
     types:
       - closed
     branches:
@@ -24,7 +24,7 @@ jobs:
     steps:
       - run: |
           echo "This is a canonical hack to run GitHub Actions on merged PRs"
-          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-workflow-when-a-pull-request-merges"
+          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges"
 
       - name: Comment on PR with link to this action
         uses: peter-evans/create-or-update-comment@v2
@@ -45,16 +45,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install rustup
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install jq
-        run: sudo apt install -y jq
+      - uses: cachix/install-nix-action@v22
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+            accept-flake-config = true
 
       - name: Get version number
         id: get_cargo_metadata
-        run: |
-          echo "version=$(./.github/workflows/get-crate-version.sh)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
 
   build:
     name: Release Build
@@ -67,75 +67,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install rustup
-        uses: dtolnay/rust-toolchain@stable
-        if: runner.os == 'macOS'
+      - uses: cachix/install-nix-action@v22
         with:
-          target: x86_64-apple-darwin, aarch64-apple-darwin
-
-      - name: Install rustup
-        uses: dtolnay/rust-toolchain@stable
-        if: runner.os == 'Linux'
-        with:
-          target: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
-
-      - name: Log versions
-        run: which -a rustup && rustup --version
-
-      - name: Test
-        run: cargo test
-
-      - name: Build (macOS, x86_64)
-        if: runner.os == 'macOS'
-        run: cargo build --release --target x86_64-apple-darwin
-
-      - name: Build (macOS, aarch64)
-        if: runner.os == 'macOS'
-        run: cargo build --release --target aarch64-apple-darwin
-
-      - name: Build (Linux, x86_64)
-        if: runner.os == 'Linux'
-        run: cargo build --release --target x86_64-unknown-linux-musl
-
-      - name: Create macOS universal executable and codesign it
-        if: runner.os == 'macOS'
-        run: |
-          lipo -create -output target/release/nix-your-shell-macos \
-            target/x86_64-apple-darwin/release/nix-your-shell \
-            target/aarch64-apple-darwin/release/nix-your-shell
-
-      - name: Rename executables for upload
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p target/release
-          mv target/x86_64-unknown-linux-musl/release/nix-your-shell \
-             target/release/nix-your-shell-x86_64-linux
-
-      - name: Upload macOS executable
-        uses: actions/upload-artifact@v3
-        if: runner.os == 'macOS'
-        with:
-          name: macos
-          path: target/release/nix-your-shell-macos
-
-      - name: Upload Linux x86_64 executable
-        uses: actions/upload-artifact@v3
-        if: runner.os == 'Linux'
-        with:
-          name: linux-x86_64
-          path: target/release/nix-your-shell-x86_64-linux
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+            accept-flake-config = true
 
       - name: Publish to crates.io
         if: runner.os == 'Linux'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish
+          nix run .#pkgs.x86_64-linux.cargo -- publish --no-verify
 
   upload:
     name: Upload assets to release
@@ -180,9 +129,6 @@ jobs:
           prerelease: false
           generate_release_notes: true
           tag_name: v${{ needs.version.outputs.version }}
-          files: |
-            macos/nix-your-shell-macos
-            linux-x86_64/nix-your-shell-x86_64-linux
 
       - name: Comment on PR with link to the release
         uses: peter-evans/create-or-update-comment@v2
