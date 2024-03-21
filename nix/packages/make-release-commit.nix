@@ -2,7 +2,7 @@
   writeShellApplication,
   cargo,
   cargo-release,
-  gitAndTools,
+  git,
 }:
 writeShellApplication {
   name = "make-release-commit";
@@ -10,7 +10,7 @@ writeShellApplication {
   runtimeInputs = [
     cargo
     cargo-release
-    gitAndTools.git
+    git
   ];
 
   text = ''
