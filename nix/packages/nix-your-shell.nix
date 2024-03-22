@@ -7,6 +7,7 @@
   inputs,
   rustPlatform,
   rust-analyzer,
+  runCommand,
 }: let
   src = lib.cleanSourceWith {
     src = crane-lib.path ../../.;
@@ -71,10 +72,15 @@
       rust-analyzer
     ];
   };
-in
+
+  generate-config = shell:
+    runCommand "nix-your-shell-config" {} ''
+      ${lib.getExe pkg} ${lib.escapeShellArg shell} >> "$out"
+    '';
+
   # Build the actual crate itself, reusing the dependency
   # artifacts from above.
-  crane-lib.buildPackage (commonArgs
+  pkg = crane-lib.buildPackage (commonArgs
     // {
       # Don't run tests; we'll do that in a separate derivation.
       # This will allow people to install and depend on `ghciwatch`
@@ -85,7 +91,7 @@ in
       cargoBuildCommand = "cargoWithProfile build";
 
       passthru = {
-        inherit checks devShell;
+        inherit checks devShell generate-config;
       };
 
       meta = {
@@ -95,4 +101,6 @@ in
         platforms = import inputs.systems;
         mainProgram = cargoToml.package.name;
       };
-    })
+    });
+in
+  pkg
