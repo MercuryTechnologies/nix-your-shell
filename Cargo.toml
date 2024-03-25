@@ -1,6 +1,6 @@
 [package]
 name = "nix-your-shell"
-version = "1.4.4"
+version = "1.4.5"
 edition = "2021"
 authors = ["Rebecca Turner <rebeccat@mercury.com>"]
 description = "A `nix` and `nix-shell` wrapper for shells other than `bash`"
