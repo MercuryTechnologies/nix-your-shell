@@ -193,7 +193,7 @@ Add to a NixOS flake configuration using the overlay:
   # Example configuration for `fish`:
   programs.fish = {
     enable = true;
-    promptInit = ''
+    interactiveShellInit = ''
       nix-your-shell fish | source
     '';
   };
