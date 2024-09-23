@@ -15,7 +15,7 @@ categories = ["command-line-utilities"]
 calm_io = "0.1.1"
 camino = "1.1.4"
 clap = { version = "4.3.4", features = ["derive", "wrap_help", "env"] }
-color-eyre = "0.6.2"
+miette = { version = "7.2.0", features = ["fancy"] }
 minijinja = { version = "1.0.12", features = ["json"] }
 shell-words = "1.1.0"
 tracing = { version = "0.1.39", features = ["attributes"] }

@@ -6,10 +6,9 @@ use calm_io::stdout as println;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use color_eyre::eyre;
-use color_eyre::eyre::eyre;
-use color_eyre::eyre::Context;
-use color_eyre::Help;
+use miette::miette;
+use miette::Context;
+use miette::IntoDiagnostic;
 
 mod shell;
 use shell::Shell;
@@ -83,9 +82,8 @@ impl Default for Command {
     }
 }
 
-fn main() -> eyre::Result<()> {
+fn main() -> miette::Result<()> {
     let opts = Opts::parse();
-    color_eyre::install()?;
     install_tracing(&opts.log)?;
 
     let shell = Shell::from_path(&opts.shell)?;
@@ -111,10 +109,10 @@ fn main() -> eyre::Result<()> {
                 }
 
                 ShellKind::Other(shell) => {
-                    return Err(eyre!(
-                        "I don't know how to generate a shell environment for `{shell}`"
+                    return Err(miette!(
+                        "I don't know how to generate a shell environment for `{shell}`\n\
+                        Note: Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`"
                     ))
-                    .note("Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`")
                 }
             };
 
@@ -139,17 +137,18 @@ fn main() -> eyre::Result<()> {
         Command::NixShell { args } => {
             let new_args = nix::transform_nix_shell(args, shell.path.as_str());
             let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
+            let command =
+                shell_words::join(std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str())));
             tracing::debug!(
-                command = shell_words::join(
-                    std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str()))
-                ),
+                %command,
                 "Launching nix-shell"
             );
             Err(process::Command::new(prog)
                 .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
-                .exec()
-                .into())
+                .exec())
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Unable to launch {command}"))
         }
 
         Command::Nix { args } => {
@@ -164,27 +163,26 @@ fn main() -> eyre::Result<()> {
             } else {
                 "nix"
             };
-            tracing::debug!(
-                command = shell_words::join(
-                    std::iter::once(prog).chain(new_args.args.iter().map(|s| s.as_str()))
-                ),
-                "Launching nix"
+            let command = shell_words::join(
+                std::iter::once(prog).chain(new_args.args.iter().map(|s| s.as_str())),
             );
+            tracing::debug!(%command, "Launching nix");
             Err(process::Command::new(prog)
                 .args(new_args.args)
                 .env(NIX_SOURCED_VAR, "1")
-                .exec()
-                .into())
+                .exec())
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Unable to launch {command}"))
         }
     }
 }
 
-fn install_tracing(filter_directives: &str) -> eyre::Result<()> {
+fn install_tracing(filter_directives: &str) -> miette::Result<()> {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::Layer;
 
-    let env_filter = tracing_subscriber::EnvFilter::try_new(filter_directives)?;
+    let env_filter = tracing_subscriber::EnvFilter::try_new(filter_directives).into_diagnostic()?;
 
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
@@ -199,16 +197,22 @@ fn install_tracing(filter_directives: &str) -> eyre::Result<()> {
 }
 
 /// Get the path to the current executable.
-fn current_exe() -> eyre::Result<Utf8PathBuf> {
-    Utf8PathBuf::from_path_buf(std::env::current_exe()?)
-        .map_err(|path_buf| eyre!("Path is not UTF-8: {path_buf:?}"))
+fn current_exe() -> miette::Result<Utf8PathBuf> {
+    Utf8PathBuf::from_path_buf(
+        std::env::current_exe()
+            .into_diagnostic()
+            .wrap_err("Unable to determine current executable")?,
+    )
+    .map_err(|path_buf| miette!("Path is not UTF-8: {path_buf:?}"))
 }
 
-fn executable_is_on_path(executable: &Utf8Path) -> eyre::Result<bool> {
+fn executable_is_on_path(executable: &Utf8Path) -> miette::Result<bool> {
     let directory = executable
         .parent()
-        .ok_or_else(|| eyre!("Executable has no parent directory: {executable:?}"))?;
-    let path = std::env::var("PATH").wrap_err("Failed to get $PATH environment variable")?;
+        .ok_or_else(|| miette!("Executable has no parent directory: {executable:?}"))?;
+    let path = std::env::var("PATH")
+        .into_diagnostic()
+        .wrap_err("Failed to get $PATH environment variable")?;
     Ok(path
         .split(':')
         .map(Utf8Path::new)

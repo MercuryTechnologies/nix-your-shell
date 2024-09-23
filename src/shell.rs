@@ -2,8 +2,7 @@ use std::fmt::Display;
 
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
-use color_eyre::eyre;
-use color_eyre::eyre::eyre;
+use miette::miette;
 
 /// A user's shell.
 #[derive(Clone, Debug)]
@@ -52,12 +51,12 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn from_path(path: impl AsRef<Utf8Path>) -> eyre::Result<Self> {
+    pub fn from_path(path: impl AsRef<Utf8Path>) -> miette::Result<Self> {
         let path = path.as_ref();
         let file_name = match path.file_name() {
             Some(name) => name,
             None => {
-                return Err(eyre!("Path has no filename: {path:?}"));
+                return Err(miette!("Path has no filename: {path:?}"));
             }
         };
 
