@@ -3,11 +3,12 @@
 [![nixpkgs](https://repology.org/badge/version-for-repo/nix_unstable/nix-your-shell.svg?header=nixpkgs)](https://repology.org/project/nix-your-shell/versions)
 [![Crates.io](https://img.shields.io/crates/v/nix-your-shell)](https://crates.io/crates/nix-your-shell)
 
-A `nix` and `nix-shell` wrapper for shells other than `bash`.
+A `nix` and `nix-shell` wrapper for shells.
 
 `nix develop` and `nix-shell` use `bash` as the default shell, so
 `nix-your-shell` prints shell snippets you can source to use the shell
-you prefer inside of Nix shells.
+you prefer inside of Nix shells. Or, keep using `bash` but apply your bash
+customizations.
 
 ## Usage
 
@@ -32,8 +33,7 @@ These replace commands like `nix foo bar` with `nix-your-shell fish nix foo
 bar`. `nix-your-shell` then parses the `nix` arguments and adds a `--command
 fish` argument before launching the underlying command.
 
-Then, `nix-shell`, `nix develop`, and `nix shell` will use your shell instead
-of bash, unless overridden explicitly with a `--command` argument.
+Then, `nix-shell`, `nix develop`, and `nix shell` will use your preferred shell, unless overridden explicitly with a `--command` argument.
 
 ### Fish
 
@@ -62,6 +62,16 @@ Add to your `~/.config/xonsh/rc.xsh`
 ```xonsh
 if !(which nix-your-shell):
     nix-your-shell xonsh | source
+```
+
+### bash
+
+Add to your `~/.bashrc`:
+
+```bash
+if command -v nix-your-shell > /dev/null; then
+  source /dev/stdin <<< "$(nix-your-shell bash)"
+fi
 ```
 
 ### Nushell
