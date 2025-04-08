@@ -57,11 +57,10 @@ fi
 
 ### Xonsh
 
-Add to your `~/.config/xonsh/rc.xsh`
+Add to your `~/.xonshrc` or `~/.config/xonsh/rc.xsh`
 
 ```xonsh
-if !(which nix-your-shell):
-    nix-your-shell xonsh | source
+execx($(nix-your-shell xonsh))
 ```
 
 ### Nushell
