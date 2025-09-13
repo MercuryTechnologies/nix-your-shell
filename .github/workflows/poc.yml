@@ -1,0 +1,21 @@
+name: PoC Vulnerable Workflow
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  poc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Proof of Vulnerability
+        run: |
+          echo "[+] Actor: ${{ github.actor }}"
+          echo "[+] Repo: ${{ github.repository }}"
+          echo "[+] PR Number: ${{ github.event.pull_request.number }}"
+          echo "[+] Whoami:"
+          whoami
+          echo "[+] Current directory:"
+          pwd
+          echo "[+] Environment variables:"
+          env | grep GITHUB
