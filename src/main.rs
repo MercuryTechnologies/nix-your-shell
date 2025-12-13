@@ -229,8 +229,8 @@ fn main() -> miette::Result<()> {
             let named_shell = std::env::var("name").ok();
             let pkgs = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
 
-            let in_nix_shell = std::env::var("IN_NIX_SHELL").is_ok_and(|value| value != "")
-                || std::env::var("IN_NIX_RUN").is_ok_and(|value| value != "");
+            let in_nix_shell = std::env::var("IN_NIX_SHELL").is_ok_and(|value| !value.is_empty())
+                || std::env::var("IN_NIX_RUN").is_ok_and(|value| !value.is_empty());
             if !in_nix_shell {
                 return Ok(());
             }
