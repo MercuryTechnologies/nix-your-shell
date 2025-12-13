@@ -243,7 +243,9 @@ fn main() -> miette::Result<()> {
             }
             let output = output.trim();
             if !output.is_empty() {
-                let _ = println!("\x1b[1;32m{output}\x1b[0m");
+                // Include a single empty space after the output since
+                // Some terminals will not display the output if it is not followed by a space.
+                let _ = println!("\x1b[1;32m{output} \x1b[0m");
             }
 
             Ok(())
