@@ -28,6 +28,12 @@ mod nix;
 /// See: <https://github.com/MercuryTechnologies/nix-your-shell/issues/25>
 const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
 
+/// Environment variable that tracks packages across nested nix shells.
+///
+/// This is set when a Nix shell is launched, and is used to track the packages
+/// that have been installed in the shell.
+const NIX_YOUR_SHELL_PKGS_VAR: &str = "NIX_YOUR_SHELL_PKGS";
+
 /// A `nix` and `nix-shell` wrapper for shells other than `bash`.
 ///
 /// Use by adding `nix-your-shell | source` to your shell configuration.
@@ -59,6 +65,10 @@ pub struct Opts {
     /// `/opt/homebrew/bin/fish`.
     shell: String,
 
+    /// Add information about the current shell to the right of the shell prompt.
+    #[arg(long, default_value_t = false)]
+    info_right: bool,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -74,11 +84,33 @@ pub enum Command {
     NixShell { args: Vec<String> },
     /// Execute a `nix` command, running the shell if no command is explicitly given.
     Nix { args: Vec<String> },
+    /// Print information about the current shell.
+    ShellInfo,
 }
 
 impl Default for Command {
     fn default() -> Self {
         Self::Env
+    }
+}
+
+/// Build the accumulated packages environment variable value.
+///
+/// This combines any existing packages from the environment with new packages
+/// to support nested nix shells.
+fn build_packages_env(new_packages: &[String]) -> String {
+    let existing = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
+
+    if new_packages.is_empty() {
+        return existing;
+    }
+
+    let new_pkgs_str = new_packages.join(" ");
+
+    if existing.is_empty() {
+        new_pkgs_str
+    } else {
+        format!("{} {}", existing, new_pkgs_str)
     }
 }
 
@@ -126,6 +158,7 @@ fn main() -> miette::Result<()> {
                 } else {
                     "nix-your-shell"
                 },
+                info_right => opts.info_right,
                 extra_args => if opts.nom { vec!["--nom"] } else { vec![] },
                 shell => shell.path.as_str(),
             );
@@ -135,27 +168,35 @@ fn main() -> miette::Result<()> {
         }
 
         Command::NixShell { args } => {
-            let new_args = nix::transform_nix_shell(args, shell.path.as_str());
+            let result = nix::transform_nix_shell(args, shell.path.as_str());
             let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
-            let command =
-                shell_words::join(std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str())));
+            let command = shell_words::join(
+                std::iter::once(prog).chain(result.args.iter().map(|s| s.as_str())),
+            );
             tracing::debug!(
                 %command,
+                packages = ?result.packages,
                 "Launching nix-shell"
             );
+
+            // Build the accumulated packages string
+            let pkgs_env = build_packages_env(&result.packages);
+
             Err(process::Command::new(prog)
-                .args(new_args)
+                .args(result.args)
                 .env(NIX_SOURCED_VAR, "1")
+                .env(NIX_YOUR_SHELL_PKGS_VAR, pkgs_env)
                 .exec())
             .into_diagnostic()
             .wrap_err_with(|| format!("Unable to launch {command}"))
         }
 
         Command::Nix { args } => {
-            let new_args = nix::transform_nix(args, shell.path.as_str());
+            let result = nix::transform_nix(args, shell.path.as_str());
             let prog = if opts.nom
-                && new_args
+                && result
                     .subcommand
+                    .as_ref()
                     .map(|subcommand| ["shell", "build", "develop"].contains(&subcommand.as_str()))
                     .unwrap_or(false)
             {
@@ -164,15 +205,48 @@ fn main() -> miette::Result<()> {
                 "nix"
             };
             let command = shell_words::join(
-                std::iter::once(prog).chain(new_args.args.iter().map(|s| s.as_str())),
+                std::iter::once(prog).chain(result.args.iter().map(|s| s.as_str())),
             );
-            tracing::debug!(%command, "Launching nix");
+            tracing::debug!(
+                %command,
+                packages = ?result.packages,
+                "Launching nix"
+            );
+
+            // Build the accumulated packages string
+            let pkgs_env = build_packages_env(&result.packages);
+
             Err(process::Command::new(prog)
-                .args(new_args.args)
+                .args(result.args)
                 .env(NIX_SOURCED_VAR, "1")
+                .env(NIX_YOUR_SHELL_PKGS_VAR, pkgs_env)
                 .exec())
             .into_diagnostic()
             .wrap_err_with(|| format!("Unable to launch {command}"))
+        }
+
+        Command::ShellInfo => {
+            let named_shell = std::env::var("name").ok();
+            let pkgs = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
+
+            let in_nix_shell = std::env::var("IN_NIX_SHELL").is_ok_and(|value| value != "")
+                || std::env::var("IN_NIX_RUN").is_ok_and(|value| value != "");
+            if !in_nix_shell {
+                return Ok(());
+            }
+
+            let mut output = pkgs;
+            if let Some(named_shell) = named_shell {
+                if named_shell != "shell" {
+                    output = format!("{output} {named_shell}");
+                }
+            }
+            let output = output.trim();
+            if !output.is_empty() {
+                let _ = println!("\x1b[1;32m{output}\x1b[0m");
+            }
+
+            Ok(())
         }
     }
 }
