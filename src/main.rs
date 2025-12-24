@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process;
@@ -33,6 +34,11 @@ const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
 /// This is set when a Nix shell is launched, and is used to track the packages
 /// that have been installed in the shell.
 const NIX_YOUR_SHELL_PKGS_VAR: &str = "NIX_YOUR_SHELL_PKGS";
+
+/// Environment variable that tracks the name of the current nix shell.
+///
+/// This is set when a Nix shell is launched, and is used to track the name of the shell.
+const NIX_SHELL_NAME_VAR: &str = "name";
 
 /// A `nix` and `nix-shell` wrapper for shells other than `bash`.
 ///
@@ -99,18 +105,32 @@ impl Default for Command {
 /// This combines any existing packages from the environment with new packages
 /// to support nested nix shells.
 fn build_packages_env(new_packages: &[String]) -> String {
+    let name = std::env::var(NIX_SHELL_NAME_VAR).ok().and_then(|value| {
+        if value == "shell" {
+            None
+        } else {
+            Some(value)
+        }
+    });
     let existing = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
+    let existing = existing.trim();
 
-    if new_packages.is_empty() {
-        return existing;
-    }
+    let existing_set = existing.split_whitespace().collect::<HashSet<_>>();
+    let filtered_packages = new_packages
+        .iter()
+        .chain(name.as_ref())
+        .map(|s| s.trim())
+        .filter(|pkg| !pkg.is_empty() && !existing_set.contains(pkg))
+        .collect::<Vec<_>>();
 
-    let new_pkgs_str = new_packages.join(" ");
+    let filtered_packages_str = filtered_packages.join(" ");
+    let filtered_packages_str = filtered_packages_str.trim();
 
-    if existing.is_empty() {
-        new_pkgs_str
-    } else {
-        format!("{} {}", existing, new_pkgs_str)
+    match (existing.is_empty(), filtered_packages_str.is_empty()) {
+        (true, true) => String::new(),
+        (false, true) => existing.into(),
+        (true, false) => filtered_packages_str.into(),
+        (false, false) => format!("{existing} {filtered_packages_str}"),
     }
 }
 
@@ -226,22 +246,7 @@ fn main() -> miette::Result<()> {
         }
 
         Command::ShellInfo => {
-            let named_shell = std::env::var("name").ok();
-            let pkgs = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
-
-            let in_nix_shell = std::env::var("IN_NIX_SHELL").is_ok_and(|value| !value.is_empty())
-                || std::env::var("IN_NIX_RUN").is_ok_and(|value| !value.is_empty());
-            if !in_nix_shell {
-                return Ok(());
-            }
-
-            let mut output = pkgs;
-            if let Some(named_shell) = named_shell {
-                if named_shell != "shell" {
-                    output = format!("{output} {named_shell}");
-                }
-            }
-            let output = output.trim();
+            let output = build_packages_env(&[]);
             if !output.is_empty() {
                 // Include a single empty space after the output since
                 // Some terminals will not display the output if it is not followed by a space.
