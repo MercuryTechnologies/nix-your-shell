@@ -1,104 +1,65 @@
 ---
-# This workflow runs when PRs labeled `major`, `minor`, or `patch` are closed
-# and increments version numbers. Then, it opens a PR labeled `release` for the
-# changes. When that PR is merged, a release is created (see `release.yaml`).
-#
-# Are you here because I left Mercury and now my personal access token is
-# invalid for workflows, breaking CI? You'll want to go to
-#     https://github.com/MercuryTechnologies/nix-your-shell/settings/secrets/actions
-# and update the `REPO_GITHUB_TOKEN` secret to a new, valid token.
-
 on:
-  pull_request_target:
-    types:
-      - closed
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type to perform'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
 
 name: Update versions and create release PR
 
 jobs:
-  # We make `if_merged` a `needs:` of the other jobs here to only run this
-  # workflow on merged PRs.
-  if_merged:
-    name: Check that PR was merged and not closed
-    if: github.event.pull_request.merged == true
-      && ( contains(github.event.pull_request.labels.*.name, 'major')
-        || contains(github.event.pull_request.labels.*.name, 'minor')
-        || contains(github.event.pull_request.labels.*.name, 'patch')
-      )
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "This is a canonical hack to run GitHub Actions on merged PRs"
-          echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges"
-
-  bump_type:
-    name: Determine version bump type
-    needs: if_merged
-    runs-on: ubuntu-latest
-    outputs:
-      bump_type: ${{ steps.bump_type.outputs.bump_type }}
-    steps:
-      - name: Set output
-        id: bump_type
-        env:
-          is_major: ${{ contains(github.event.pull_request.labels.*.name, 'major') }}
-          is_minor: ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}
-          is_patch: ${{ contains(github.event.pull_request.labels.*.name, 'patch') }}
-        run: |
-          if [[ "$is_major" == "true" ]]; then
-            echo "bump_type=major" >> "$GITHUB_OUTPUT"
-          elif [[ "$is_minor" == "true" ]]; then
-            echo "bump_type=minor" >> "$GITHUB_OUTPUT"
-          elif [[ "$is_patch" == "true" ]]; then
-            echo "bump_type=patch" >> "$GITHUB_OUTPUT"
-          fi
-
   version:
     name: Bump version and create release PR
-    permissions:
-      pull-requests: write
-    needs:
-      - if_merged
-      - bump_type
     runs-on: ubuntu-latest
     steps:
+      # See: https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#authenticating-with-github-app-generated-tokens
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: generate_token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           # Fetch all history/tags (needed to compute versions)
           fetch-depth: 0
 
-      - uses: cachix/install-nix-action@6ed004b9ccb68dbc28e7c85bee15fa93dbd214ac # v22
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-          extra_nix_config: |
-            extra-experimental-features = nix-command flakes
-            accept-flake-config = true
+      - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
 
       - name: Get old version number
         id: old_cargo_metadata
-        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(nix eval --raw ".#packages.x86_64-linux.default.version")" >> "$GITHUB_OUTPUT"
 
       - name: Increment `Cargo.toml` version
-        run: nix run .#make-release-commit -- ${{ needs.bump_type.outputs.bump_type }}
+        run: nix run .#make-release-commit -- ${{ inputs.bump_type }}
 
       - name: Get new version number
         id: new_cargo_metadata
-        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(nix eval --raw ".#packages.x86_64-linux.default.version")" >> "$GITHUB_OUTPUT"
 
       - name: Create release PR
         id: release_pr
-        uses: peter-evans/create-pull-request@4e1beaa7521e8b457b572c090b25bd3db56bf1c5 # v5.0.3
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
-          # We push with the repo-scoped GitHub token to avoid branch
-          # protections. This token is tied to my account (@9999years) which is
-          # excluded from branch protection restrictions.
-          #
           # I'd love a better way of implementing this but GitHub doesn't have
           # one: https://github.com/github-community/community/discussions/13836
-          token: ${{ secrets.REPO_GITHUB_TOKEN }}
+          #
+          # Also, PRs created with the default `secrets.GITHUB_TOKEN` won't
+          # trigger `pull_request` workflows, so regular CI won't run either.
+          # See: https://github.com/orgs/community/discussions/65321
+          #
+          # See: https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#authenticating-with-github-app-generated-tokens
+          token: ${{ steps.generate_token.outputs.token }}
           branch: release/${{ steps.new_cargo_metadata.outputs.version }}
           delete-branch: true
           base: main
@@ -107,12 +68,3 @@ jobs:
             Update version to ${{ steps.new_cargo_metadata.outputs.version }} with [cargo-release](https://github.com/crate-ci/cargo-release).
             Merge this PR to build and publish a new release.
           labels: release
-
-      - name: Comment on PR with link to release PR
-        uses: peter-evans/create-or-update-comment@23ff15729ef2fc348714a3bb66d2f655ca9066f2 # v3.1.0
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            [A PR to release these changes has been created, bumping the version from ${{ steps.old_cargo_metadata.outputs.version }} to ${{ steps.new_cargo_metadata.outputs.version }}.][pr]
-
-            [pr]: ${{ steps.release_pr.outputs.pull-request-url }}

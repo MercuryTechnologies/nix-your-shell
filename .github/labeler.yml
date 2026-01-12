@@ -1,7 +1,0 @@
----
-# See: https://github.com/marketplace/actions/labeler
-patch:
-  - 'src/**/*.rs'
-  - 'data/**/*'
-  - 'Cargo.toml'
-  - 'Cargo.lock'
