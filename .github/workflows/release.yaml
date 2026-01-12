@@ -3,11 +3,12 @@
 
 # Run when PRs to main are closed.
 on:
-  pull_request_target:
+  pull_request:
     types:
       - closed
     branches:
       - main
+  workflow_dispatch:
 
 name: Build and publish a release
 
@@ -15,19 +16,24 @@ jobs:
   # We make `if_merged` a `needs:` of the other jobs here to only run this
   # workflow on merged PRs.
   if_merged:
-    name: Check that PR was merged and not closed
-    if: github.event.pull_request.merged == true
-      && contains(github.event.pull_request.labels.*.name, 'release')
-    runs-on: ubuntu-latest
     permissions:
+      issues: write
       pull-requests: write
+    name: Check that PR was merged and not closed
+    if: github.event_name == 'workflow_dispatch'
+      || (
+        github.event.pull_request.merged == true
+        && contains(github.event.pull_request.labels.*.name, 'release')
+      )
+    runs-on: ubuntu-latest
     steps:
       - run: |
           echo "This is a canonical hack to run GitHub Actions on merged PRs"
           echo "See: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges"
 
       - name: Comment on PR with link to this action
-        uses: peter-evans/create-or-update-comment@67dcc547d311b736a8e6c5c236542148a47adc3d # v2.1.1
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+        if: github.event_name == 'pull_request'
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
@@ -40,44 +46,28 @@ jobs:
     needs: if_merged
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_cargo_metadata.outputs.version }}
+      version: ${{ steps.get_version_number.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: cachix/install-nix-action@6ed004b9ccb68dbc28e7c85bee15fa93dbd214ac # v22
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-          extra_nix_config: |
-            extra-experimental-features = nix-command flakes
-            accept-flake-config = true
+      - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
 
       - name: Get version number
-        id: get_cargo_metadata
-        run: echo "version=$(nix run .#get-crate-version)" >> "$GITHUB_OUTPUT"
+        id: get_version_number
+        run: |
+          echo "version=$(nix eval --raw ".#packages.x86_64-linux.default.version")" >> "$GITHUB_OUTPUT"
 
   build:
     name: Release Build
-    # Now we're ready to do the release build. In this step, we upload
-    # "artifacts" which lets us share files between jobs (the artifacts are
-    # downloaded by the next job, `upload`) and aggregate files from different
-    # parts of the matrix (so we can have the macOS and Linux executables in
-    # the next job).
     needs: if_merged
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-      - uses: cachix/install-nix-action@6ed004b9ccb68dbc28e7c85bee15fa93dbd214ac # v22
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-          extra_nix_config: |
-            extra-experimental-features = nix-command flakes
-            accept-flake-config = true
+      - name: Install Nix
+        uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
 
       - name: Publish to crates.io
         if: runner.os == 'Linux'
@@ -93,46 +83,44 @@ jobs:
       - if_merged
       - build
       - version
+    # ...is this needed even if we're using a GitHub app token??
     permissions:
       contents: write
+      issues: write
       pull-requests: write
     steps:
-      - name: Tag the release
-        uses: mathieudutour/github-tag-action@d745f2e74aaf1ee82e747b181f7a0967978abee0 # v6.0
+      # See: https://github.com/peter-evans/create-pull-request/blob/main/docs/concepts-guidelines.md#authenticating-with-github-app-generated-tokens
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: generate_token
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          commit_sha: ${{ github.event.pull_request.merge_commit_sha }}
-          custom_tag: ${{ needs.version.outputs.version }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Download artifacts
-        # This downloads the uploaded artifacts to the current directory; the
-        # path format for downloaded artifacts is `{name}/{basename}`, where
-        # `{basename}` is the basename of the upload `path`.
-        #
-        # For example, the following artifact:
-        #
-        #     - uses: actions/upload-artifact@v3
-        #       with:
-        #         name: linux-aarch64
-        #         path: target/release/nix-your-shell-aarch64-linux
-        #
-        # will be downloaded to `linux-aarch64/nix-your-shell-aarch64-linux`.
-        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
+      - name: Tag the release
+        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
+        with:
+          github_token: ${{ steps.generate_token.outputs.token }}
+          # For `workflow_dispatch`, use the commit hash directly. For pull
+          # requests, use the merge commit instead.
+          commit_sha: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          # Note: This action automatically applies a prefix for us!
+          custom_tag: ${{ needs.version.outputs.version }}
 
       - name: Create release
         id: create_release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
+          token: ${{ steps.generate_token.outputs.token }}
           draft: false
           prerelease: false
           generate_release_notes: true
           tag_name: v${{ needs.version.outputs.version }}
 
       - name: Comment on PR with link to the release
-        uses: peter-evans/create-or-update-comment@67dcc547d311b736a8e6c5c236542148a47adc3d # v2.1.1
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+        if: github.event_name == 'pull_request'
         with:
+          token: ${{ steps.generate_token.outputs.token }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             [Release ${{ needs.version.outputs.version }}][release] was built and published successfully!
