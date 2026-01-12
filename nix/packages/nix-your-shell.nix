@@ -2,7 +2,6 @@
   lib,
   stdenv,
   libiconv,
-  darwin,
   crane-lib,
   inputs,
   rustPlatform,
@@ -25,7 +24,6 @@
 
     nativeBuildInputs = lib.optionals stdenv.isDarwin [
       libiconv
-      darwin.apple_sdk.frameworks.CoreServices
     ];
   };
 
