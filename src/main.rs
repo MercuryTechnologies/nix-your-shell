@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process;
@@ -27,6 +28,17 @@ mod nix;
 ///
 /// See: <https://github.com/MercuryTechnologies/nix-your-shell/issues/25>
 const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
+
+/// Environment variable that tracks packages across nested nix shells.
+///
+/// This is set when a Nix shell is launched, and is used to track the packages
+/// that have been installed in the shell.
+const NIX_YOUR_SHELL_PKGS_VAR: &str = "NIX_YOUR_SHELL_PKGS";
+
+/// Environment variable that tracks the name of the current nix shell.
+///
+/// This is set when a Nix shell is launched, and is used to track the name of the shell.
+const NIX_SHELL_NAME_VAR: &str = "name";
 
 /// A `nix` and `nix-shell` wrapper for shells other than `bash`.
 ///
@@ -59,6 +71,10 @@ pub struct Opts {
     /// `/opt/homebrew/bin/fish`.
     shell: String,
 
+    /// Add information about the current shell to the right of the shell prompt.
+    #[arg(long, default_value_t = false)]
+    info_right: bool,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -75,6 +91,42 @@ pub enum Command {
     NixShell { args: Vec<String> },
     /// Execute a `nix` command, running the shell if no command is explicitly given.
     Nix { args: Vec<String> },
+    /// Print information about the current shell.
+    ShellInfo,
+}
+
+/// Build the accumulated packages environment variable value.
+///
+/// This combines any existing packages from the environment with new packages
+/// to support nested nix shells.
+fn build_packages_env(new_packages: &[String]) -> String {
+    let name = std::env::var(NIX_SHELL_NAME_VAR).ok().and_then(|value| {
+        if value == "shell" {
+            None
+        } else {
+            Some(value)
+        }
+    });
+    let existing = std::env::var(NIX_YOUR_SHELL_PKGS_VAR).unwrap_or_default();
+    let existing = existing.trim();
+
+    let existing_set = existing.split_whitespace().collect::<HashSet<_>>();
+    let filtered_packages = new_packages
+        .iter()
+        .chain(name.as_ref())
+        .map(|s| s.trim())
+        .filter(|pkg| !pkg.is_empty() && !existing_set.contains(pkg))
+        .collect::<Vec<_>>();
+
+    let filtered_packages_str = filtered_packages.join(" ");
+    let filtered_packages_str = filtered_packages_str.trim();
+
+    match (existing.is_empty(), filtered_packages_str.is_empty()) {
+        (true, true) => String::new(),
+        (false, true) => existing.into(),
+        (true, false) => filtered_packages_str.into(),
+        (false, false) => format!("{existing} {filtered_packages_str}"),
+    }
 }
 
 fn main() -> miette::Result<()> {
@@ -121,6 +173,7 @@ fn main() -> miette::Result<()> {
                 } else {
                     "nix-your-shell"
                 },
+                info_right => opts.info_right,
                 extra_args => if opts.nom { vec!["--nom"] } else { vec![] },
                 shell => shell.path.as_str(),
             );
@@ -130,27 +183,35 @@ fn main() -> miette::Result<()> {
         }
 
         Command::NixShell { args } => {
-            let new_args = nix::transform_nix_shell(args, shell.path.as_str());
+            let result = nix::transform_nix_shell(args, shell.path.as_str());
             let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
-            let command =
-                shell_words::join(std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str())));
+            let command = shell_words::join(
+                std::iter::once(prog).chain(result.args.iter().map(|s| s.as_str())),
+            );
             tracing::debug!(
                 %command,
+                packages = ?result.packages,
                 "Launching nix-shell"
             );
+
+            // Build the accumulated packages string
+            let pkgs_env = build_packages_env(&result.packages);
+
             Err(process::Command::new(prog)
-                .args(new_args)
+                .args(result.args)
                 .env(NIX_SOURCED_VAR, "1")
+                .env(NIX_YOUR_SHELL_PKGS_VAR, pkgs_env)
                 .exec())
             .into_diagnostic()
             .wrap_err_with(|| format!("Unable to launch {command}"))
         }
 
         Command::Nix { args } => {
-            let new_args = nix::transform_nix(args, shell.path.as_str());
+            let result = nix::transform_nix(args, shell.path.as_str());
             let prog = if opts.nom
-                && new_args
+                && result
                     .subcommand
+                    .as_ref()
                     .map(|subcommand| ["shell", "build", "develop"].contains(&subcommand.as_str()))
                     .unwrap_or(false)
             {
@@ -159,15 +220,35 @@ fn main() -> miette::Result<()> {
                 "nix"
             };
             let command = shell_words::join(
-                std::iter::once(prog).chain(new_args.args.iter().map(|s| s.as_str())),
+                std::iter::once(prog).chain(result.args.iter().map(|s| s.as_str())),
             );
-            tracing::debug!(%command, "Launching nix");
+            tracing::debug!(
+                %command,
+                packages = ?result.packages,
+                "Launching nix"
+            );
+
+            // Build the accumulated packages string
+            let pkgs_env = build_packages_env(&result.packages);
+
             Err(process::Command::new(prog)
-                .args(new_args.args)
+                .args(result.args)
                 .env(NIX_SOURCED_VAR, "1")
+                .env(NIX_YOUR_SHELL_PKGS_VAR, pkgs_env)
                 .exec())
             .into_diagnostic()
             .wrap_err_with(|| format!("Unable to launch {command}"))
+        }
+
+        Command::ShellInfo => {
+            let output = build_packages_env(&[]);
+            if !output.is_empty() {
+                // Include a single empty space after the output since
+                // Some terminals will not display the output if it is not followed by a space.
+                let _ = println!("\x1b[1;32m{output} \x1b[0m");
+            }
+
+            Ok(())
         }
     }
 }

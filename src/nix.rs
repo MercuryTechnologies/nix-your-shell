@@ -5,6 +5,35 @@ pub struct NixArgs {
     pub args: Vec<String>,
     /// Subcommand to run, like `build` or `shell`.
     pub subcommand: Option<String>,
+    /// Packages extracted from the command (for `nix shell`).
+    pub packages: Vec<String>,
+}
+
+/// Arguments to a `nix-shell` invocation.
+#[derive(Debug)]
+pub struct NixShellArgs {
+    /// Transformed arguments.
+    pub args: Vec<String>,
+    /// Packages extracted from the command.
+    pub packages: Vec<String>,
+}
+
+/// Truncate a package name to just the first component for display.
+/// For example, `nixpkgs#hello` becomes `hello`, `nixpkgs#python3Packages.requests` stays as-is.
+fn extract_package_display_name(arg: &str) -> String {
+    // Handle flake references like `nixpkgs#hello` or `.#mypackage`
+    if let Some(hash_pos) = arg.rfind('#') {
+        arg[hash_pos + 1..].to_string()
+    } else if arg.ends_with(".nix") {
+        // For .nix files, use the filename without extension
+        std::path::Path::new(arg)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(arg)
+            .to_string()
+    } else {
+        arg.to_string()
+    }
 }
 
 /// Transform arguments to a `nix` invocation to run the specified `command`.
@@ -14,6 +43,7 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
     let mut ret = Vec::with_capacity(args.len() + 2);
 
     let mut subcommand = None;
+    let mut packages = Vec::new();
 
     let mut i = 0;
     while i < args.len() {
@@ -26,7 +56,8 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
                 // We already have a command to run.
                 return NixArgs {
                         args,
-                        subcommand
+                        subcommand,
+                        packages,
                     };
             }
 
@@ -249,7 +280,11 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
             }
 
             _ => {
-                // Unknown argument, ignore.
+                // For `nix shell`, positional arguments after the subcommand are installables (packages).
+                // They look like: nixpkgs#hello, .#mypackage, github:owner/repo#pkg, or just a path.
+                if subcommand.as_deref() == Some("shell") && !args[i].starts_with('-') {
+                    packages.push(extract_package_display_name(&args[i]));
+                }
             }
         }
 
@@ -273,14 +308,19 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
     NixArgs {
         args: ret,
         subcommand,
+        packages,
     }
 }
 
 /// Transform arguments to a `nix-shell` invocation to run the specified `command`.
-pub fn transform_nix_shell(args: Vec<String>, command: &str) -> Vec<String> {
+pub fn transform_nix_shell(args: Vec<String>, command: &str) -> NixShellArgs {
     let mut ret = Vec::with_capacity(args.len() + 2);
     ret.push("--command".into());
     ret.push(command.into());
+
+    let mut packages = Vec::new();
+    // Track if we're in --packages mode (positional args are package names)
+    let mut in_packages_mode = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -316,13 +356,18 @@ pub fn transform_nix_shell(args: Vec<String>, command: &str) -> Vec<String> {
                 i += 1;
             }
 
+            // `--packages` changes the meaning of positional arguments
+            "-p" | "--packages" => {
+                in_packages_mode = true;
+            }
+
+            // `--expr` also changes meaning of positional arguments (to nix expressions)
+            "-E" | "--expr" => {
+                in_packages_mode = false;
+            }
+
             // Zero arguments
             "--pure" | "--impure"
-                // `--packages` changes the meaning of positional arguments, so we effectively
-                // ignore it.
-                | "-p" | "--packages"
-                // Also changes meaning of positional arguments.
-                | "-E" | "--expr"
                 // `nix-store`
                 | "--dry-run" | "--ignore-unknown" | "--check"
                 // From `nix-build` source...
@@ -347,16 +392,22 @@ pub fn transform_nix_shell(args: Vec<String>, command: &str) -> Vec<String> {
                 => {
                 // We already have a command to run; don't add our own `--command {command}`
                 // arguments.
-                return args;
+                return NixShellArgs { args, packages };
             }
 
             _ => {
-                // Unknown argument, ignore.
+                // If we're in packages mode, this is a package name
+                if in_packages_mode && !args[i].starts_with('-') {
+                    packages.push(extract_package_display_name(&args[i]));
+                }
             }
         }
 
         i += 1;
     }
 
-    ret
+    NixShellArgs {
+        args: ret,
+        packages,
+    }
 }
