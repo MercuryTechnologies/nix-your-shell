@@ -69,12 +69,12 @@ execx($(nix-your-shell xonsh))
 > Nushell version >=0.87.0 is required
 
 > [!NOTE]
-> Nushell requires sourced configuration files to exist before `nu` is started.
+> Nushell requires configuration files to exist before `nu` is started.
 
 Add to your `~/.config/nushell/config.nu`:
 
 ```nu
-source nix-your-shell.nu
+overlay use ~/.config/nushell/nix-your-shell.nu
 ```
 
 To generate the `nix-your-shell.nu` file:

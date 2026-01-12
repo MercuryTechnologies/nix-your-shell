@@ -79,12 +79,13 @@ pub struct Opts {
     command: Option<Command>,
 }
 
-#[derive(Debug, Clone, clap::Subcommand)]
+#[derive(Debug, Clone, Default, clap::Subcommand)]
 pub enum Command {
     /// Print the shell environment code to use `nix-your-shell`.
     ///
     /// This generally prints functions for `nix` and `nix-shell` which will instead call
     /// `nix-your-shell nix ...` and `nix-your-shell nix-shell ...`.
+    #[default]
     Env,
     /// Execute a `nix-shell` command, running the shell if no command is explicitly given.
     NixShell { args: Vec<String> },
@@ -92,12 +93,6 @@ pub enum Command {
     Nix { args: Vec<String> },
     /// Print information about the current shell.
     ShellInfo,
-}
-
-impl Default for Command {
-    fn default() -> Self {
-        Self::Env
-    }
 }
 
 /// Build the accumulated packages environment variable value.

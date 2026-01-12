@@ -3,10 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    crane.url = "github:ipetkov/crane";
     systems.url = "github:nix-systems/default";
     advisory-db = {
       url = "github:rustsec/advisory-db";

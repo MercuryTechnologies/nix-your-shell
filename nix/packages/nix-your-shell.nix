@@ -2,7 +2,6 @@
   lib,
   stdenv,
   libiconv,
-  darwin,
   crane-lib,
   inputs,
   rustPlatform,
@@ -25,7 +24,6 @@
 
     nativeBuildInputs = lib.optionals stdenv.isDarwin [
       libiconv
-      darwin.apple_sdk.frameworks.CoreServices
     ];
   };
 
@@ -42,6 +40,7 @@
   checks = {
     tests = crane-lib.cargoNextest (commonArgs
       // {
+        NEXTEST_NO_TESTS = "warn";
         NEXTEST_PROFILE = "ci";
         NEXTEST_HIDE_PROGRESS_BAR = "true";
       });
