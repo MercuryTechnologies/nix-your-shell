@@ -7,10 +7,11 @@ pub struct NixArgs {
     pub subcommand: Option<String>,
 }
 
-/// Transform arguments to a `nix` invocation to run the specified `command`.
+/// Transform arguments to a `nix` invocation to run the specified `command` with the specified
+/// `command_args`.
 ///
 /// Only modifies `nix develop` and `nix shell` commands.
-pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
+pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>) -> NixArgs {
     let mut ret = Vec::with_capacity(args.len() + 2);
 
     let mut subcommand = None;
@@ -265,6 +266,7 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
         Some("develop") | Some("shell") => {
             ret.push("--command".into());
             ret.push(command.into());
+            ret.extend(command_args);
         }
 
         _ => {}
@@ -276,11 +278,18 @@ pub fn transform_nix(args: Vec<String>, command: &str) -> NixArgs {
     }
 }
 
-/// Transform arguments to a `nix-shell` invocation to run the specified `command`.
-pub fn transform_nix_shell(args: Vec<String>, command: &str) -> Vec<String> {
+/// Transform arguments to a `nix-shell` invocation to run the specified `command` with the
+/// specified `command_args`.
+pub fn transform_nix_shell(
+    args: Vec<String>,
+    command: &str,
+    command_args: &[String],
+) -> Vec<String> {
     let mut ret = Vec::with_capacity(args.len() + 2);
     ret.push("--command".into());
-    ret.push(command.into());
+    ret.push(shell_words::join(
+        std::iter::once(command).chain(command_args.iter().map(|arg| arg.as_str())),
+    ));
 
     let mut i = 0;
     while i < args.len() {

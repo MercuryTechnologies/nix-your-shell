@@ -54,6 +54,12 @@ pub struct Opts {
     #[arg(long)]
     nom: bool,
 
+    /// Extra arguments to add to the invocation of the shell.
+    ///
+    /// Mostly useful for testing.
+    #[arg(long = "shell-arg")]
+    shell_args: Vec<String>,
+
     /// The shell to use for wrapped commands and the shell environment.
     /// This can be an executable name like `fish` or the path to an executable like
     /// `/opt/homebrew/bin/fish`.
@@ -130,7 +136,7 @@ fn main() -> miette::Result<()> {
         }
 
         Command::NixShell { args } => {
-            let new_args = nix::transform_nix_shell(args, shell.path.as_str());
+            let new_args = nix::transform_nix_shell(args, shell.path.as_str(), &opts.shell_args);
             let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
             let command =
                 shell_words::join(std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str())));
@@ -147,7 +153,7 @@ fn main() -> miette::Result<()> {
         }
 
         Command::Nix { args } => {
-            let new_args = nix::transform_nix(args, shell.path.as_str());
+            let new_args = nix::transform_nix(args, shell.path.as_str(), opts.shell_args);
             let prog = if opts.nom
                 && new_args
                     .subcommand
