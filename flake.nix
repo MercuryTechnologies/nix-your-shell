@@ -9,6 +9,11 @@
       url = "github:rustsec/advisory-db";
       flake = false;
     };
+    flake-compat = {
+      url = "https://git.lix.systems/lix-project/flake-compat/archive/main.tar.gz";
+      # Optional:
+      flake = false;
+    };
   };
 
   nixConfig = {
