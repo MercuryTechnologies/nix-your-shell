@@ -6,8 +6,3 @@
 failure-output = "immediate-final"
 # Do not cancel the test run on the first failure.
 fail-fast = false
-# The Garnix CI builders run in some weird virtual filesystem that messes with
-# `notify`. Even with sleeps before writing and poll-based notifications,
-# sometimes `notify` misses events (this is rare, maybe 1 in 50 test runs).
-# Retry tests if they fail in CI to mitigate this.
-retries = 3
