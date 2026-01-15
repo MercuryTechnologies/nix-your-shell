@@ -87,7 +87,13 @@ fn main() -> miette::Result<()> {
     let opts = Opts::parse();
     install_tracing(&opts.log)?;
 
-    let shell = Shell::from_path(&opts.shell)?;
+    let shell = Shell::from_path(&opts.shell).wrap_err_with(|| {
+        format!(
+            "I don't know how to generate a shell environment for `{}`\n\
+            Note: Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`",
+            opts.shell
+        )
+    })?;
     tracing::debug!(%shell, input=opts.shell, "Detected shell");
 
     match opts.command.unwrap_or_default() {
@@ -107,13 +113,6 @@ fn main() -> miette::Result<()> {
 
                 ShellKind::Xonsh => {
                     include_str!("../data/env.xsh.j2")
-                }
-
-                ShellKind::Other(shell) => {
-                    return Err(miette!(
-                        "I don't know how to generate a shell environment for `{shell}`\n\
-                        Note: Supported shells are: `zsh`, `fish`, `nushell`, `xonsh`, and `bash`"
-                    ))
                 }
             };
 

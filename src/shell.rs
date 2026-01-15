@@ -5,7 +5,7 @@ use camino::Utf8PathBuf;
 use miette::miette;
 
 /// A user's shell.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum ShellKind {
     /// The `zsh` shell.
     /// <https://zsh.sourceforge.io/>
@@ -26,9 +26,6 @@ pub enum ShellKind {
     /// The `xonsh` shell.
     /// <https://xon.sh>
     Xonsh,
-
-    /// A different shell.
-    Other(String),
 }
 
 impl Display for ShellKind {
@@ -39,7 +36,6 @@ impl Display for ShellKind {
             ShellKind::Bash => write!(f, "bash"),
             ShellKind::Nushell => write!(f, "nu"),
             ShellKind::Xonsh => write!(f, "xonsh"),
-            ShellKind::Other(shell) => write!(f, "{shell}"),
         }
     }
 }
@@ -71,7 +67,7 @@ impl Shell {
         } else if file_name.starts_with("xonsh") {
             ShellKind::Xonsh
         } else {
-            ShellKind::Other(file_name.to_string())
+            return Err(miette!("Unknown shell: {file_name:?}"));
         };
 
         Ok(Self {
