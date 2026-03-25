@@ -7,6 +7,24 @@ pub struct NixArgs {
     pub subcommand: Option<String>,
 }
 
+fn try_consume_option_values(
+    args: &[String],
+    ret: &mut Vec<String>,
+    i: &mut usize,
+    values_to_consume: usize,
+) -> bool {
+    if *i + values_to_consume >= args.len() {
+        return false;
+    }
+
+    for offset in 1..=values_to_consume {
+        ret.push(args[*i + offset].clone());
+    }
+
+    *i += values_to_consume;
+    true
+}
+
 /// Transform arguments to a `nix` invocation to run the specified `command` with the specified
 /// `command_args`.
 ///
@@ -39,13 +57,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
                 | "--argstr"
                 | "--override-input"
                 => {
-                if i + 2 >= args.len() {
+                if !try_consume_option_values(&args, &mut ret, &mut i, 2) {
                     // Truncated option value(s); keep input unchanged and stop parsing.
                     break;
                 }
-                ret.push(args[i + 1].clone());
-                ret.push(args[i + 2].clone());
-                i += 2;
             }
 
             // One argument
@@ -130,12 +145,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
             | "--expr"
             | "-f" | "--file"
             => {
-                if i + 1 >= args.len() {
+                if !try_consume_option_values(&args, &mut ret, &mut i, 1) {
                     // Truncated option value; keep input unchanged and stop parsing.
                     break;
                 }
-                ret.push(args[i + 1].clone());
-                i += 1;
             }
 
             // Zero arguments
@@ -310,13 +323,10 @@ pub fn transform_nix_shell(
                 // From `nix-build` source...
                 | "--override-flake"
                 => {
-                if i + 2 >= args.len() {
+                if !try_consume_option_values(&args, &mut ret, &mut i, 2) {
                     // Truncated option value(s); keep input unchanged and stop parsing.
                     break;
                 }
-                ret.push(args[i + 1].clone());
-                ret.push(args[i + 2].clone());
-                i += 2;
             }
 
             // One argument
@@ -333,12 +343,10 @@ pub fn transform_nix_shell(
                 | "--eval-store"
                 | "-o" | "--out-link"
                 => {
-                if i + 1 >= args.len() {
+                if !try_consume_option_values(&args, &mut ret, &mut i, 1) {
                     // Truncated option value; keep input unchanged and stop parsing.
                     break;
                 }
-                ret.push(args[i + 1].clone());
-                i += 1;
             }
 
             // Zero arguments
