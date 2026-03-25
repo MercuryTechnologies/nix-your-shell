@@ -279,9 +279,7 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
                 // Top-level subcommand.
 
                 // Replace `subcommand` unless it already has a value.
-                if subcommand.is_none() {
-                    subcommand = Some(args[i].clone());
-                }
+                subcommand.get_or_insert_with(|| args[i].clone());
             }
 
             _ => {
