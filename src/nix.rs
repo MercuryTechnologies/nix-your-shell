@@ -39,6 +39,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
                 | "--argstr"
                 | "--override-input"
                 => {
+                if i + 2 >= args.len() {
+                    // Truncated option value(s); keep input unchanged and stop parsing.
+                    break;
+                }
                 ret.push(args[i + 1].clone());
                 ret.push(args[i + 2].clone());
                 i += 2;
@@ -126,6 +130,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
             | "--expr"
             | "-f" | "--file"
             => {
+                if i + 1 >= args.len() {
+                    // Truncated option value; keep input unchanged and stop parsing.
+                    break;
+                }
                 ret.push(args[i + 1].clone());
                 i += 1;
             }
@@ -302,6 +310,10 @@ pub fn transform_nix_shell(
                 // From `nix-build` source...
                 | "--override-flake"
                 => {
+                if i + 2 >= args.len() {
+                    // Truncated option value(s); keep input unchanged and stop parsing.
+                    break;
+                }
                 ret.push(args[i + 1].clone());
                 ret.push(args[i + 2].clone());
                 i += 2;
@@ -321,6 +333,10 @@ pub fn transform_nix_shell(
                 | "--eval-store"
                 | "-o" | "--out-link"
                 => {
+                if i + 1 >= args.len() {
+                    // Truncated option value; keep input unchanged and stop parsing.
+                    break;
+                }
                 ret.push(args[i + 1].clone());
                 i += 1;
             }
