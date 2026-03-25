@@ -99,21 +99,10 @@ fn main() -> miette::Result<()> {
     match opts.command.unwrap_or_default() {
         Command::Env => {
             let template = match shell.kind {
-                ShellKind::Zsh | ShellKind::Bash => {
-                    include_str!("../data/env.sh.j2")
-                }
-
-                ShellKind::Fish => {
-                    include_str!("../data/env.fish.j2")
-                }
-
-                ShellKind::Nushell => {
-                    include_str!("../data/env.nu.j2")
-                }
-
-                ShellKind::Xonsh => {
-                    include_str!("../data/env.xsh.j2")
-                }
+                ShellKind::Zsh | ShellKind::Bash => include_str!("../data/env.sh.j2"),
+                ShellKind::Fish => include_str!("../data/env.fish.j2"),
+                ShellKind::Nushell => include_str!("../data/env.nu.j2"),
+                ShellKind::Xonsh => include_str!("../data/env.xsh.j2"),
             };
 
             let current_exe =
