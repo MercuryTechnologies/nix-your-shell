@@ -25,6 +25,16 @@ fn try_consume_option_values(
     true
 }
 
+fn handle_end_of_options(args: &[String], ret: &mut Vec<String>, i: usize) -> bool {
+    if args[i] == "--" {
+        // End of options sentinel: copy the remaining positional arguments verbatim.
+        ret.extend(args[i + 1..].iter().cloned());
+        return true;
+    }
+
+    false
+}
+
 /// Transform arguments to a `nix` invocation to run the specified `command` with the specified
 /// `command_args`.
 ///
@@ -37,6 +47,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
     let mut i = 0;
     while i < args.len() {
         ret.push(args[i].clone());
+
+        if handle_end_of_options(&args, &mut ret, i) {
+            break;
+        }
 
         match args[i].as_str() {
             "--help" | "--version"
@@ -315,6 +329,11 @@ pub fn transform_nix_shell(
     let mut i = 0;
     while i < args.len() {
         ret.push(args[i].clone());
+
+        if handle_end_of_options(&args, &mut ret, i) {
+            break;
+        }
+
         match args[i].as_str() {
             // Two arguments
             "--arg" | "--argstr"
