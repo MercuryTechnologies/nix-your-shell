@@ -35,6 +35,24 @@ fish` argument before launching the underlying command.
 Then, `nix-shell`, `nix develop`, and `nix shell` will use your shell instead
 of bash, unless overridden explicitly with a `--command` argument.
 
+### Home Manager
+
+If you are using [Home Manager](https://home-manager.dev/), enable the `nix-your-shell` program module:
+
+```nix
+programs.nix-your-shell = {
+  enable = true;
+
+  # Optional: Enable for selected shells. Default: `home.shell.enable<Shell>Integration`.
+  enableFishIntegration = true;
+  enableNushellIntegration = true;
+  enableZshIntegration = true;
+
+  # Optional: Whether to pipe the build output through nix-output-monitor. Default: false.
+  nix-output-monitor.enable = true;
+};
+```
+
 ### Fish
 
 Add to your `~/.config/fish/config.fish`:
@@ -69,7 +87,7 @@ execx($(nix-your-shell xonsh))
 > Nushell version >=0.87.0 is required
 
 > [!NOTE]
-> Nushell requires sourced configuration files to exist before `nu` is started.
+> Nushell requires that sourced configuration files exist before `nu` starts.
 
 Add to your `~/.config/nushell/config.nu`:
 
@@ -85,9 +103,9 @@ Either manually generate it:
 nix-your-shell nu | save $env.XDG_CONFIG_HOME/nushell/nix-your-shell.nu
 ```
 
-Or ensure it's kept updated alongside `nix-your-shell` by populating the file with [`home-manager`][home-manager]:
+Or ensure it's kept updated alongside `nix-your-shell` by populating the file with, e.g., [Home Manager][home-manager]:
 
-[home-manager]: https://nix-community.github.io/home-manager/
+[home-manager]: https://home-manager.dev/
 
 ```nix
 { config, pkgs, ... }: {
@@ -222,4 +240,4 @@ There are a few reasons I wrote `nix-your-shell` as a competitor:
   on your `$PATH`).
 
 However, `any-nix-shell` can optionally display the packages in the current
-shell on a righthand prompt. `nix-your-shell` does not support this.
+shell on a right-hand prompt. `nix-your-shell` does not support this.
