@@ -3,7 +3,7 @@
 [![nixpkgs](https://repology.org/badge/version-for-repo/nix_unstable/nix-your-shell.svg?header=nixpkgs)](https://repology.org/project/nix-your-shell/versions)
 [![Crates.io](https://img.shields.io/crates/v/nix-your-shell)](https://crates.io/crates/nix-your-shell)
 
-A `nix` and `nix-shell` wrapper for shells other than `bash`.
+A `nix`, `nix-shell`, and `devenv` wrapper for shells other than `bash`.
 
 `nix develop` and `nix-shell` use `bash` as the default shell, so
 `nix-your-shell` prints shell snippets you can source to use the shell
@@ -34,6 +34,10 @@ fish` argument before launching the underlying command.
 
 Then, `nix-shell`, `nix develop`, and `nix shell` will use your shell instead
 of bash, unless overridden explicitly with a `--command` argument.
+
+The generated shell integration also wraps `devenv`. Other `devenv` subcommands
+pass through unchanged, and `devenv shell <command>` is left alone when you
+explicitly provide a command.
 
 ### Fish
 

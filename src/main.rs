@@ -14,6 +14,7 @@ mod shell;
 use shell::Shell;
 use shell::ShellKind;
 
+mod devenv;
 mod nix;
 
 /// Environment variable that indicates that the Nix profile has already been sourced.
@@ -28,7 +29,7 @@ mod nix;
 /// See: <https://github.com/MercuryTechnologies/nix-your-shell/issues/25>
 const NIX_SOURCED_VAR: &str = "__ETC_PROFILE_NIX_SOURCED";
 
-/// A `nix` and `nix-shell` wrapper for shells other than `bash`.
+/// A `nix`, `nix-shell`, and `devenv` wrapper for shells other than `bash`.
 ///
 /// Use by adding `nix-your-shell | source` to your shell configuration.
 #[derive(Debug, Clone, Parser)]
@@ -81,6 +82,8 @@ pub enum Command {
     NixShell { args: Vec<String> },
     /// Execute a `nix` command, running the shell if no command is explicitly given.
     Nix { args: Vec<String> },
+    /// Execute a `devenv` command, running the shell for `devenv shell` if no command is explicitly given.
+    Devenv { args: Vec<String> },
 }
 
 fn main() -> miette::Result<()> {
@@ -169,6 +172,20 @@ fn main() -> miette::Result<()> {
             tracing::debug!(%command, "Launching nix");
             Err(process::Command::new(prog)
                 .args(new_args.args)
+                .env(NIX_SOURCED_VAR, "1")
+                .exec())
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Unable to launch {command}"))
+        }
+
+        Command::Devenv { args } => {
+            let new_args = devenv::transform_devenv(args, shell.path.as_str(), &opts.shell_args);
+            let command = shell_words::join(
+                std::iter::once("devenv").chain(new_args.iter().map(|s| s.as_str())),
+            );
+            tracing::debug!(%command, "Launching devenv");
+            Err(process::Command::new("devenv")
+                .args(new_args)
                 .env(NIX_SOURCED_VAR, "1")
                 .exec())
             .into_diagnostic()

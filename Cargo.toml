@@ -3,10 +3,10 @@ name = "nix-your-shell"
 version = "1.4.10"
 edition = "2021"
 authors = ["Rebecca Turner <rebeccat@mercury.com>"]
-description = "A `nix` and `nix-shell` wrapper for shells other than `bash`"
+description = "A `nix`, `nix-shell`, and `devenv` wrapper for shells other than `bash`"
 repository = "https://github.com/MercuryTechnologies/nix-your-shell"
 license = "MIT"
-keywords = ["nix", "nixos", "nix-shell", "fish"]
+keywords = ["nix", "nixos", "nix-shell", "devenv", "fish"]
 categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
