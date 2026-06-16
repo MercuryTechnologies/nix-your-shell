@@ -99,21 +99,10 @@ fn main() -> miette::Result<()> {
     match opts.command.unwrap_or_default() {
         Command::Env => {
             let template = match shell.kind {
-                ShellKind::Zsh | ShellKind::Bash => {
-                    include_str!("../data/env.sh.j2")
-                }
-
-                ShellKind::Fish => {
-                    include_str!("../data/env.fish.j2")
-                }
-
-                ShellKind::Nushell => {
-                    include_str!("../data/env.nu.j2")
-                }
-
-                ShellKind::Xonsh => {
-                    include_str!("../data/env.xsh.j2")
-                }
+                ShellKind::Zsh | ShellKind::Bash => include_str!("../data/env.sh.j2"),
+                ShellKind::Fish => include_str!("../data/env.fish.j2"),
+                ShellKind::Nushell => include_str!("../data/env.nu.j2"),
+                ShellKind::Xonsh => include_str!("../data/env.xsh.j2"),
             };
 
             let current_exe =
@@ -137,18 +126,7 @@ fn main() -> miette::Result<()> {
         Command::NixShell { args } => {
             let new_args = nix::transform_nix_shell(args, shell.path.as_str(), &opts.shell_args);
             let prog = if opts.nom { "nom-shell" } else { "nix-shell" };
-            let command =
-                shell_words::join(std::iter::once(prog).chain(new_args.iter().map(|s| s.as_str())));
-            tracing::debug!(
-                %command,
-                "Launching nix-shell"
-            );
-            Err(process::Command::new(prog)
-                .args(new_args)
-                .env(NIX_SOURCED_VAR, "1")
-                .exec())
-            .into_diagnostic()
-            .wrap_err_with(|| format!("Unable to launch {command}"))
+            exec_command(prog, new_args, "nix-shell")
         }
 
         Command::Nix { args } => {
@@ -163,16 +141,7 @@ fn main() -> miette::Result<()> {
             } else {
                 "nix"
             };
-            let command = shell_words::join(
-                std::iter::once(prog).chain(new_args.args.iter().map(|s| s.as_str())),
-            );
-            tracing::debug!(%command, "Launching nix");
-            Err(process::Command::new(prog)
-                .args(new_args.args)
-                .env(NIX_SOURCED_VAR, "1")
-                .exec())
-            .into_diagnostic()
-            .wrap_err_with(|| format!("Unable to launch {command}"))
+            exec_command(prog, new_args.args, "nix")
         }
     }
 }
@@ -217,4 +186,15 @@ fn executable_is_on_path(executable: &Utf8Path) -> miette::Result<bool> {
         .split(':')
         .map(Utf8Path::new)
         .any(|component| component == directory))
+}
+
+fn exec_command(prog: &str, args: Vec<String>, label: &str) -> miette::Result<()> {
+    let command = shell_words::join(std::iter::once(prog).chain(args.iter().map(|s| s.as_str())));
+    tracing::debug!(%command, "Launching {label}");
+    Err(process::Command::new(prog)
+        .args(args)
+        .env(NIX_SOURCED_VAR, "1")
+        .exec())
+    .into_diagnostic()
+    .wrap_err_with(|| format!("Unable to launch {command}"))
 }

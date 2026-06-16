@@ -56,18 +56,13 @@ impl Shell {
             }
         };
 
-        let kind = if file_name.starts_with("zsh") {
-            ShellKind::Zsh
-        } else if file_name.starts_with("fish") {
-            ShellKind::Fish
-        } else if file_name.starts_with("bash") {
-            ShellKind::Bash
-        } else if file_name.starts_with("nu") {
-            ShellKind::Nushell
-        } else if file_name.starts_with("xonsh") {
-            ShellKind::Xonsh
-        } else {
-            return Err(miette!("Unknown shell: {file_name:?}"));
+        let kind = match file_name {
+            name if name.starts_with("zsh") => ShellKind::Zsh,
+            name if name.starts_with("fish") => ShellKind::Fish,
+            name if name.starts_with("bash") => ShellKind::Bash,
+            name if name.starts_with("nu") => ShellKind::Nushell,
+            name if name.starts_with("xonsh") => ShellKind::Xonsh,
+            _ => return Err(miette!("Unknown shell: {file_name:?}")),
         };
 
         Ok(Self {
