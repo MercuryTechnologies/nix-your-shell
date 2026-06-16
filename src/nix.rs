@@ -14,6 +14,9 @@ fn try_consume_option_values(
     values_to_consume: usize,
 ) -> bool {
     if *i + values_to_consume >= args.len() {
+        // Truncated argv: fewer values remain than the option expects. Keep whatever
+        // partial values were actually present so we don't silently drop input.
+        ret.extend(args[*i + 1..].iter().cloned());
         return false;
     }
 
@@ -409,4 +412,102 @@ pub fn transform_nix_shell(
     }
 
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::transform_nix;
+    use super::transform_nix_shell;
+
+    fn strs(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    // --- transform_nix: truncated option values ---
+
+    /// A one-argument option with no value must not panic; we keep what we have and stop.
+    #[test]
+    fn nix_one_arg_option_missing_value_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--keep"]), "fish", vec![]);
+        assert_eq!(out.subcommand.as_deref(), Some("develop"));
+        assert_eq!(out.args, strs(&["develop", "--keep", "--command", "fish"]));
+    }
+
+    /// A two-argument option with both values missing must not panic.
+    #[test]
+    fn nix_two_arg_option_missing_both_values_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--option"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--option", "--command", "fish"])
+        );
+    }
+
+    /// A two-argument option with one value present keeps that partial value rather than
+    /// silently dropping it, per the "keep already copied args" intent.
+    ///
+    /// Regression guard: before the truncation fix, the present value (`foo`) was dropped
+    /// from the output.
+    #[test]
+    fn nix_two_arg_option_partial_value_is_preserved() {
+        let out = transform_nix(strs(&["develop", "--option", "foo"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--option", "foo", "--command", "fish"])
+        );
+    }
+
+    // --- transform_nix: end-of-options (`--`) handling ---
+
+    /// `--` mid-args: the remainder is copied verbatim and parsing stops.
+    #[test]
+    fn nix_double_dash_copies_remainder_verbatim() {
+        let out = transform_nix(strs(&["develop", "--", "extra", "args"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--", "extra", "args", "--command", "fish"])
+        );
+    }
+
+    /// `--` as the final token must not read past the end of argv.
+    #[test]
+    fn nix_double_dash_as_final_token_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--"]), "fish", vec![]);
+        assert_eq!(out.args, strs(&["develop", "--", "--command", "fish"]));
+    }
+
+    /// `--` appearing as the value of an option is consumed as that value, not treated
+    /// as the end-of-options sentinel.
+    #[test]
+    fn nix_double_dash_as_option_value_is_consumed() {
+        let out = transform_nix(strs(&["develop", "--keep", "--", "pkg"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--keep", "--", "pkg", "--command", "fish"])
+        );
+    }
+
+    // --- transform_nix_shell: truncated option values ---
+
+    /// A two-argument option with one value present keeps that partial value in the
+    /// `nix-shell` path too. Regression guard for the same partial-value-drop bug.
+    #[test]
+    fn nix_shell_two_arg_option_partial_value_is_preserved() {
+        let out = transform_nix_shell(strs(&["--arg", "x"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--arg", "x"]));
+    }
+
+    /// A truncated one-argument option in the `nix-shell` path must not panic.
+    #[test]
+    fn nix_shell_one_arg_option_missing_value_does_not_panic() {
+        let out = transform_nix_shell(strs(&["--attr"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--attr"]));
+    }
+
+    /// `--` in the `nix-shell` path copies the remainder verbatim.
+    #[test]
+    fn nix_shell_double_dash_copies_remainder_verbatim() {
+        let out = transform_nix_shell(strs(&["--pure", "--", "rest"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--pure", "--", "rest"]));
+    }
 }
