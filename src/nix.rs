@@ -7,6 +7,37 @@ pub struct NixArgs {
     pub subcommand: Option<String>,
 }
 
+fn try_consume_option_values(
+    args: &[String],
+    ret: &mut Vec<String>,
+    i: &mut usize,
+    values_to_consume: usize,
+) -> bool {
+    if *i + values_to_consume >= args.len() {
+        // Truncated argv: fewer values remain than the option expects. Keep whatever
+        // partial values were actually present so we don't silently drop input.
+        ret.extend(args[*i + 1..].iter().cloned());
+        return false;
+    }
+
+    for offset in 1..=values_to_consume {
+        ret.push(args[*i + offset].clone());
+    }
+
+    *i += values_to_consume;
+    true
+}
+
+fn handle_end_of_options(args: &[String], ret: &mut Vec<String>, i: usize) -> bool {
+    if args[i] == "--" {
+        // End of options sentinel: copy the remaining positional arguments verbatim.
+        ret.extend(args[i + 1..].iter().cloned());
+        return true;
+    }
+
+    false
+}
+
 /// Transform arguments to a `nix` invocation to run the specified `command` with the specified
 /// `command_args`.
 ///
@@ -19,6 +50,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
     let mut i = 0;
     while i < args.len() {
         ret.push(args[i].clone());
+
+        if handle_end_of_options(&args, &mut ret, i) {
+            break;
+        }
 
         match args[i].as_str() {
             "--help" | "--version"
@@ -39,9 +74,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
                 | "--argstr"
                 | "--override-input"
                 => {
-                ret.push(args[i + 1].clone());
-                ret.push(args[i + 2].clone());
-                i += 2;
+                if !try_consume_option_values(&args, &mut ret, &mut i, 2) {
+                    // Truncated option value(s); keep input unchanged and stop parsing.
+                    break;
+                }
             }
 
             // One argument
@@ -126,8 +162,10 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
             | "--expr"
             | "-f" | "--file"
             => {
-                ret.push(args[i + 1].clone());
-                i += 1;
+                if !try_consume_option_values(&args, &mut ret, &mut i, 1) {
+                    // Truncated option value; keep input unchanged and stop parsing.
+                    break;
+                }
             }
 
             // Zero arguments
@@ -244,9 +282,7 @@ pub fn transform_nix(args: Vec<String>, command: &str, command_args: Vec<String>
                 // Top-level subcommand.
 
                 // Replace `subcommand` unless it already has a value.
-                if subcommand.is_none() {
-                    subcommand = Some(args[i].clone());
-                }
+                subcommand.get_or_insert_with(|| args[i].clone());
             }
 
             _ => {
@@ -294,6 +330,11 @@ pub fn transform_nix_shell(
     let mut i = 0;
     while i < args.len() {
         ret.push(args[i].clone());
+
+        if handle_end_of_options(&args, &mut ret, i) {
+            break;
+        }
+
         match args[i].as_str() {
             // Two arguments
             "--arg" | "--argstr"
@@ -302,9 +343,10 @@ pub fn transform_nix_shell(
                 // From `nix-build` source...
                 | "--override-flake"
                 => {
-                ret.push(args[i + 1].clone());
-                ret.push(args[i + 2].clone());
-                i += 2;
+                if !try_consume_option_values(&args, &mut ret, &mut i, 2) {
+                    // Truncated option value(s); keep input unchanged and stop parsing.
+                    break;
+                }
             }
 
             // One argument
@@ -321,8 +363,10 @@ pub fn transform_nix_shell(
                 | "--eval-store"
                 | "-o" | "--out-link"
                 => {
-                ret.push(args[i + 1].clone());
-                i += 1;
+                if !try_consume_option_values(&args, &mut ret, &mut i, 1) {
+                    // Truncated option value; keep input unchanged and stop parsing.
+                    break;
+                }
             }
 
             // Zero arguments
@@ -368,4 +412,102 @@ pub fn transform_nix_shell(
     }
 
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::transform_nix;
+    use super::transform_nix_shell;
+
+    fn strs(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    // --- transform_nix: truncated option values ---
+
+    /// A one-argument option with no value must not panic; we keep what we have and stop.
+    #[test]
+    fn nix_one_arg_option_missing_value_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--keep"]), "fish", vec![]);
+        assert_eq!(out.subcommand.as_deref(), Some("develop"));
+        assert_eq!(out.args, strs(&["develop", "--keep", "--command", "fish"]));
+    }
+
+    /// A two-argument option with both values missing must not panic.
+    #[test]
+    fn nix_two_arg_option_missing_both_values_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--option"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--option", "--command", "fish"])
+        );
+    }
+
+    /// A two-argument option with one value present keeps that partial value rather than
+    /// silently dropping it, per the "keep already copied args" intent.
+    ///
+    /// Regression guard: before the truncation fix, the present value (`foo`) was dropped
+    /// from the output.
+    #[test]
+    fn nix_two_arg_option_partial_value_is_preserved() {
+        let out = transform_nix(strs(&["develop", "--option", "foo"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--option", "foo", "--command", "fish"])
+        );
+    }
+
+    // --- transform_nix: end-of-options (`--`) handling ---
+
+    /// `--` mid-args: the remainder is copied verbatim and parsing stops.
+    #[test]
+    fn nix_double_dash_copies_remainder_verbatim() {
+        let out = transform_nix(strs(&["develop", "--", "extra", "args"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--", "extra", "args", "--command", "fish"])
+        );
+    }
+
+    /// `--` as the final token must not read past the end of argv.
+    #[test]
+    fn nix_double_dash_as_final_token_does_not_panic() {
+        let out = transform_nix(strs(&["develop", "--"]), "fish", vec![]);
+        assert_eq!(out.args, strs(&["develop", "--", "--command", "fish"]));
+    }
+
+    /// `--` appearing as the value of an option is consumed as that value, not treated
+    /// as the end-of-options sentinel.
+    #[test]
+    fn nix_double_dash_as_option_value_is_consumed() {
+        let out = transform_nix(strs(&["develop", "--keep", "--", "pkg"]), "fish", vec![]);
+        assert_eq!(
+            out.args,
+            strs(&["develop", "--keep", "--", "pkg", "--command", "fish"])
+        );
+    }
+
+    // --- transform_nix_shell: truncated option values ---
+
+    /// A two-argument option with one value present keeps that partial value in the
+    /// `nix-shell` path too. Regression guard for the same partial-value-drop bug.
+    #[test]
+    fn nix_shell_two_arg_option_partial_value_is_preserved() {
+        let out = transform_nix_shell(strs(&["--arg", "x"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--arg", "x"]));
+    }
+
+    /// A truncated one-argument option in the `nix-shell` path must not panic.
+    #[test]
+    fn nix_shell_one_arg_option_missing_value_does_not_panic() {
+        let out = transform_nix_shell(strs(&["--attr"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--attr"]));
+    }
+
+    /// `--` in the `nix-shell` path copies the remainder verbatim.
+    #[test]
+    fn nix_shell_double_dash_copies_remainder_verbatim() {
+        let out = transform_nix_shell(strs(&["--pure", "--", "rest"]), "fish", &[]);
+        assert_eq!(out, strs(&["--command", "fish", "--pure", "--", "rest"]));
+    }
 }
