@@ -10,9 +10,8 @@ use miette::miette;
 use miette::Context;
 use miette::IntoDiagnostic;
 
-mod shell;
-use shell::Shell;
-use shell::ShellKind;
+use nix_your_shell::Shell;
+use nix_your_shell::ShellKind;
 
 mod nix;
 

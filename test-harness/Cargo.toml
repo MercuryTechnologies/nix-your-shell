@@ -1,0 +1,19 @@
+[package]
+name = "test-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+command-error.workspace = true
+fs_extra = "1.3"
+miette.workspace = true
+nix-your-shell = { path = ".." }
+tempfile.workspace = true
+utf8-command.workspace = true
+test-harness-macro.path = "../test-harness-macro"
+rexpect.workspace = true
+
+# See: https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
+[package.metadata.release]
+release = false

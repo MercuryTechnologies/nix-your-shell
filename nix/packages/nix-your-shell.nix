@@ -7,6 +7,14 @@
   rustPlatform,
   rust-analyzer,
   runCommand,
+  git,
+  fish,
+  zsh,
+  nushell,
+  xonsh,
+  bash,
+  coreutils,
+  lix,
 }: let
   src = lib.cleanSourceWith {
     src = crane-lib.path ../../.;
@@ -37,12 +45,36 @@
       inherit cargoArtifacts;
     };
 
+  # Environment variables for test template substitution.
+  # These are used by test-harness to replace placeholders in config.nix.in.
+  testTemplateEnv = {
+    NIX_YOUR_SHELL_TEST_BASH = "${bash}/bin/bash";
+    NIX_YOUR_SHELL_TEST_COREUTILS = "${coreutils}";
+    NIX_YOUR_SHELL_TEST_SYSTEM = stdenv.hostPlatform.system;
+  };
+
+  checkInputs = [
+    fish
+    zsh
+    nushell
+    xonsh
+    bash
+  ];
+
   checks = {
     tests = crane-lib.cargoNextest (commonArgs
+      // testTemplateEnv
       // {
+        CI = true;
+
         NEXTEST_NO_TESTS = "warn";
         NEXTEST_PROFILE = "ci";
         NEXTEST_HIDE_PROGRESS_BAR = "true";
+
+        nativeCheckInputs = checkInputs ++ [
+          git
+          lix
+        ];
       });
     clippy = crane-lib.cargoClippy (commonArgs
       // {
@@ -60,17 +92,20 @@
       });
   };
 
-  devShell = crane-lib.devShell {
-    inherit checks;
+  devShell = crane-lib.devShell (
+    testTemplateEnv
+    // {
+      inherit checks;
 
-    # Make rust-analyzer work
-    RUST_SRC_PATH = rustPlatform.rustLibSrc;
+      # Make rust-analyzer work
+      RUST_SRC_PATH = rustPlatform.rustLibSrc;
 
-    # Extra development tools (cargo and rustc are included by default).
-    packages = [
-      rust-analyzer
-    ];
-  };
+      # Extra development tools (cargo and rustc are included by default).
+      packages = checkInputs ++ [
+        rust-analyzer
+      ];
+    }
+  );
 
   generate-config = shell:
     runCommand "nix-your-shell-config" {} ''
